@@ -917,8 +917,8 @@ function buildFileName(base, ext) {
 function buildAutoDlFileName() {
     const title = getStreamTitle();
     const channel = getChannelName();
-    const base = [title, channel, 'KVD'].filter(Boolean).join(' - ');
-    return buildFileName(base || 'kick-vod - KVD', '.mp4');
+    const base = ['BETTERKICK', title, channel].filter(Boolean).join(' - ');
+    return buildFileName(base || 'BETTERKICK - kick-vod', '.mp4');
 }
 
 function buildVodFileName(title, ext) {
