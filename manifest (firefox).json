@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "BetterKick – Todo lo que Kick debería tener",
+  "version": "1.0.0",
+  "description": "Mejora tu experiencia en Kick tanto cómo viewer, cómo moderador o cómo Streamer.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "webRequest",
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://kick.com/*",
+    "https://*.kick.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://kick.com/*", "https://dashboard.kick.com/*"],
+      "js": ["mux.min.js", "content.js"],
+      "css": ["style.css"]
+    }
+  ],
+  "background": {
+    "scripts": ["mux.min.js", "background.js"]
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "BetterKick – Todo lo que Kick debería tener",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "kickvoddownloader@example.com",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*", "locales/*.json"],
+      "matches": ["https://kick.com/*", "https://dashboard.kick.com/*"]
+    }
+  ]
+}
