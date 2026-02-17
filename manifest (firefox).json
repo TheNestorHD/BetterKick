@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Kick VOD Downloader",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "Download Kick.com VODs directly as MP4 files with a single click. Fast, simple, and runs entirely in your browser.",
   "permissions": [
     "activeTab",
@@ -18,13 +18,13 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://kick.com/*"],
+      "matches": ["https://kick.com/*", "https://dashboard.kick.com/*"],
       "js": ["mux.min.js", "content.js"],
       "css": ["style.css"]
     }
   ],
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["mux.min.js", "background.js"]
   },
   "action": {
     "default_popup": "popup.html",
@@ -51,7 +51,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["assets/*"],
+      "resources": ["assets/*", "locales/*.json"],
       "matches": ["https://kick.com/*", "https://dashboard.kick.com/*"]
     }
   ]
