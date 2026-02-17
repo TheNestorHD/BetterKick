@@ -922,7 +922,10 @@ function buildAutoDlFileName() {
 }
 
 function buildVodFileName(title, ext) {
-    return buildFileName(title || getVodTitle() || 'kick-vod', ext);
+    const channel = getChannelName();
+    const resolvedTitle = title || getVodTitle() || 'kick-vod';
+    const base = ['BETTERKICK', resolvedTitle, channel].filter(Boolean).join(' - ');
+    return buildFileName(base || 'BETTERKICK - kick-vod', ext);
 }
 
 // Helper to create and update overlay

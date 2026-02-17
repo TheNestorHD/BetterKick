@@ -338,7 +338,7 @@ const downloadVodInBackground = async (payload, tabId, controller) => {
     }
     const ext = isAudioOnly ? 'm4a' : 'mp4';
     if (!fileName || !fileName.includes('.')) {
-        fileName = `kick-vod.${ext}`;
+        fileName = `BETTERKICK - kick-vod.${ext}`;
     }
 
     const sendStage = (text, etaText = '', currentBytes = 0, currentSpeed = 0, speedWarningText = '') => {
