@@ -1,6 +1,6 @@
 # BetterKick
 
-**BetterKick** is a browser extension (Chrome/Edge) that allows you to download VODs (Video on Demand) from Kick.com directly as **MP4 files** with a single click. No command-line tools, no external websites, and no complex setup required.
+**BetterKick** is a browser extension (Chrome/Edge/Opera/Brave/Vivaldi/Firefox) that allows you to download VODs (Video on Demand) from Kick.com directly as **MP4 files** with a single click. No command-line tools, no external websites, and no complex setup required.
 
 ![Icon](icons/icon128.png)
 
@@ -20,7 +20,7 @@
 ### 📝 File Naming
 
 *   **VOD downloads** default to the VOD title as filename (sanitized and limited to 255 characters).
-*   **SR downloads** default to `STREAM TITLE - CHANNEL - KVD.mp4`.
+*   **SR downloads** default to `BETTERKICK - STREAM TITLE - CHANNEL.mp4`.
 *   **You can edit the name** in the Save dialog before downloading.
 *   **Live stream downloads** show a suggested name in the Save dialog.
 
@@ -53,9 +53,6 @@ Since this extension is not published in the Web Store, you need to install it m
 *   The extension loads the browser language automatically, with **Spanish as the default** when the language is not supported.
 *   Each key resolves in this order: active language → Spanish → English.
 *   Locale loading and missing key checks are logged in the console with the `[i18n]` prefix.
-*   Validation scripts:
-    *   `node check-i18n.js`
-    *   `node tests/i18n.test.js`
 
 ---
 
@@ -76,7 +73,7 @@ Since this extension is not published in the Web Store, you need to install it m
 ### 📝 Nomenclatura de Archivos
 
 *   **Descargas de VOD**: usan el título del VOD como nombre de archivo (sanitizado y limitado a 255 caracteres).
-*   **SR**: usa `TÍTULO DEL STREAM - CANAL - KVD.mp4`.
+*   **SR**: usa `BETTERKICK - TÍTULO DEL STREAM - CANAL.mp4`.
 *   **Puedes editar el nombre** en el diálogo de guardado antes de descargar.
 *   **Descarga de streams en vivo**: muestra un nombre sugerido en el diálogo de guardado.
 
@@ -109,9 +106,6 @@ Como esta extensión no está publicada en la tienda, necesitas instalarla manua
 *   La extensión detecta el idioma del navegador automáticamente, con **español como valor predeterminado** cuando el idioma no es compatible.
 *   Cada clave se resuelve en este orden: idioma activo → español → inglés.
 *   La carga de locales y validación de claves faltantes se registra en consola con el prefijo `[i18n]`.
-*   Scripts de validación:
-    *   `node check-i18n.js`
-    *   `node tests/i18n.test.js`
 
 ---
 
@@ -125,12 +119,12 @@ Como esta extensión no está publicada en la tienda, necesitas instalarla manua
 ## Store Listing / Ficha de Tienda
 
 ### 🇬🇧 English
-- Short description: Download Kick.com VODs as MP4 with one click. Includes SR (Stream Recording) for moderators, quality selection, audio‑only mode, and live stream recording.
-- Full description: BetterKick adds a native “Download MP4” button to Kick.com. It converts HLS (.m3u8) to MP4 directly in your browser, shows progress (size, ETA, percentage), and supports trimmed downloads. For moderators, it offers SR (Stream Recording) at stream end with host/raid protection. It also includes an audio‑only mode (M4A), thumbnail buttons, desktop notifications, and live stream recording with cancel options.
+- Short description: Download Kick.com VODs as MP4 with one click. Includes SR (Stream Recording) for moderators, quality selection, audio‑only mode, and a couple moderation tools.
+- Full description: BetterKick adds a native “Download MP4” button to Kick.com. It converts HLS (.m3u8) to MP4 directly in your browser, shows progress (size, ETA, percentage), and supports trimmed downloads. For moderators, it offers SR (Stream Recording) at stream end with host/raid protection. It also includes an audio‑only mode (M4A), thumbnail buttons, desktop notifications, and some moderation tools.
 
 ### 🇪🇸 Español
-- Descripción corta: Descarga VODs de Kick.com en MP4 con un clic. Incluye SR (Stream Recording) para moderadores, selección de calidad, modo solo audio y grabación de stream en vivo.
-- Descripción completa: BetterKick añade un botón nativo “Download MP4” en Kick.com. Convierte HLS (.m3u8) a MP4 dentro del navegador, muestra progreso (tamaño, ETA, porcentaje) y soporta descargas recortadas. Para moderadores, ofrece SR (Stream Recording) al finalizar el stream con protección ante host/raids. También incluye modo solo audio (M4A), botones en miniaturas, notificaciones de escritorio y grabación de stream en vivo con opciones de cancelación.
+- Descripción corta: Descarga VODs de Kick.com en MP4 con un clic. Incluye SR (Stream Recording) para moderadores, selección de calidad, modo solo audio y herramientas para moderadores.
+- Descripción completa: BetterKick añade un botón nativo “Descargar MP4” en Kick.com. Convierte HLS (.m3u8) a MP4 dentro del navegador, muestra progreso (tamaño, ETA, porcentaje) y soporta descargas recortadas. Para moderadores, ofrece SR (Stream Recording) al finalizar el stream con protección ante host/raids. También incluye modo solo audio (M4A), botones en miniaturas, notificaciones de escritorio y herramientas para moderadores.
 
 ## Permissions / Permisos
 - activeTab: detectar la página actual para insertar la UI y manejar navegación.
@@ -156,15 +150,7 @@ Como esta extensión no está publicada en la tienda, necesitas instalarla manua
 - Reporta problemas desde la página del repositorio o el sistema de issues.
 - Incluye información del navegador, URL del VOD y pasos para reproducir.
 
-## Changelog Highlights 2.1.0
-- Hover del SR limitado a estado “Recording”.
-- “Cancelar” renombrado a “Stop” y diálogos en inglés.
-- Menú de fijar mensajes traducido al inglés.
-- Corrección del indicador “LIVE” duplicado en mensajes fijados.
-- Arreglo de duraciones incorrectas en grabaciones MP4 (Windows).
-
-
-### Cheats & Easter Eggs:
+## Cheats & Easter Eggs:
 
 Trucos:
 -   "Si le doy un cabezazo al teclado soy admin" (sin importar las mayúsculas o minúsculas), el usuario desbloqueará el modo Admin y podrá activar la descarga automática y toda función que requiera ser moderador. Este desbloqueo es PERMANENTE y por canal.
