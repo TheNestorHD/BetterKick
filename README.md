@@ -4,6 +4,9 @@
 
 ![Icon](icons/icon128.png)
 
+Download the add-on / Descargá la extensión:
+[Chrome](https://chromewebstore.google.com/detail/betterkick-%E2%80%93-todo-lo-que/nfcedahliilnfbfiigkeaidoimnpnhfi) & [Firefox](https://addons.mozilla.org/en-US/firefox/addon/betterkick/)
+
 ## 🇬🇧 English
 
 ### 🚀 Key Features
