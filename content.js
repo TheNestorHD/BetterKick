@@ -3560,6 +3560,73 @@ function getDashboardStreamTarget() {
     return document.body;
 }
 
+function enableStreamDashboardDrag(wrapper) {
+    if (!wrapper || wrapper.dataset.kvdDraggable === 'true') return;
+    wrapper.dataset.kvdDraggable = 'true';
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+    let width = 0;
+    let height = 0;
+    let dragging = false;
+    let moved = false;
+    let lastDragAt = 0;
+
+    const onPointerDown = (e) => {
+        if (e.button !== 0) return;
+        const rect = wrapper.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        width = rect.width;
+        height = rect.height;
+        dragging = true;
+        moved = false;
+        try {
+            wrapper.setPointerCapture(e.pointerId);
+        } catch (_) {}
+    };
+
+    const onPointerMove = (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (!moved && Math.hypot(dx, dy) < 3) return;
+        moved = true;
+        const maxLeft = Math.max(0, window.innerWidth - width);
+        const maxTop = Math.max(0, window.innerHeight - height);
+        const nextLeft = Math.min(maxLeft, Math.max(0, startLeft + dx));
+        const nextTop = Math.min(maxTop, Math.max(0, startTop + dy));
+        wrapper.style.left = `${Math.round(nextLeft)}px`;
+        wrapper.style.top = `${Math.round(nextTop)}px`;
+        wrapper.style.right = 'auto';
+        wrapper.style.bottom = 'auto';
+        wrapper.style.transform = 'none';
+        wrapper.dataset.kvdManualPosition = 'true';
+        lastDragAt = Date.now();
+    };
+
+    const onPointerUp = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        try {
+            wrapper.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+    };
+
+    wrapper.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    wrapper.addEventListener('click', (e) => {
+        if (Date.now() - lastDragAt < 250) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, true);
+}
+
 function injectStreamDownloadButton() {
     if (!isModerator()) return;
     if (document.querySelector('.kvd-stream-download-btn')) return;
@@ -3583,18 +3650,30 @@ function injectStreamDownloadButton() {
         const useFixed = target === document.body || target === document.documentElement;
         if (useFixed) {
             wrapper.style.position = 'fixed';
-            wrapper.style.top = '80px';
-            wrapper.style.left = '50%';
-            wrapper.style.transform = 'translateX(-50%)';
+            if (wrapper.dataset.kvdManualPosition !== 'true') {
+                wrapper.style.left = '16px';
+                wrapper.style.bottom = '16px';
+                wrapper.style.top = 'auto';
+                wrapper.style.right = 'auto';
+                wrapper.style.transform = 'none';
+            }
+            wrapper.style.cursor = 'move';
+            wrapper.style.touchAction = 'none';
+            enableStreamDashboardDrag(wrapper);
         } else {
+            wrapper.style.cursor = 'default';
             const style = window.getComputedStyle(target);
             if (style.position === 'static') {
                 target.style.position = 'relative';
             }
-            wrapper.style.position = 'absolute';
-            wrapper.style.left = '50%';
-            wrapper.style.top = '50%';
-            wrapper.style.transform = 'translate(-50%, -50%)';
+            if (wrapper.dataset.kvdManualPosition !== 'true') {
+                wrapper.style.position = 'absolute';
+                wrapper.style.left = '50%';
+                wrapper.style.top = '50%';
+                wrapper.style.right = 'auto';
+                wrapper.style.bottom = 'auto';
+                wrapper.style.transform = 'translate(-50%, -50%)';
+            }
         }
         if (!wrapper.contains(btn)) wrapper.appendChild(btn);
         if (cancelBtn && !wrapper.contains(cancelBtn)) wrapper.appendChild(cancelBtn);
@@ -4700,6 +4779,7 @@ function findPinButtonFromTarget(target) {
     if (!target) return null;
     const btn = target.closest ? target.closest('button') : null;
     if (!btn) return null;
+    if (isDashboardBackButton(btn)) return null;
     if (isChannelRewardButton(btn)) return null;
     const label = (btn.getAttribute('aria-label') || '').toLowerCase();
     const text = (btn.textContent || '').toLowerCase();
@@ -4712,9 +4792,28 @@ function findPinButtonFromTarget(target) {
 
 function isChannelRewardButton(btn) {
     if (!btn) return false;
+    if (isDashboardRewardButton(btn)) return true;
     if (btn.querySelector('div.min-h-\\[87px\\]') && btn.querySelector('div.min-w-10') && btn.querySelector('p.line-clamp-2')) return true;
     if (btn.querySelector('span[title]') && btn.querySelector('p[title]') && btn.querySelector('div.rounded-md')) return true;
     return false;
+}
+
+function isDashboardRewardButton(btn) {
+    if (!btn || window.location.hostname !== 'dashboard.kick.com') return false;
+    if (!btn.hasAttribute('data-active')) return false;
+    const hasColorBox = !!btn.querySelector('div.rounded-md');
+    const hasTitle = !!btn.querySelector('[title]');
+    if (!hasColorBox || !hasTitle) return false;
+    const text = (btn.textContent || '').toLowerCase();
+    const rewardHints = ['pedidos', 'pedido', 'requests', 'request', 'redemptions', 'redemption', 'canjes', 'canje'];
+    return rewardHints.some(hint => text.includes(hint));
+}
+
+function isDashboardBackButton(btn) {
+    if (!btn || window.location.hostname !== 'dashboard.kick.com') return false;
+    const sig = getButtonSvgSignature(btn);
+    if (!sig) return false;
+    return sig.includes('M26 28.46L13.2467 16L26 3.54L22.3767 0L6 16L6.02047 16.02L22.3767 32L26 28.46');
 }
 
 function getButtonSvgSignature(btn) {
@@ -4734,7 +4833,9 @@ function buttonHasPinIcon(btn) {
 function buttonHasUnpinIcon(btn) {
     const sig = getButtonSvgSignature(btn);
     if (!sig) return false;
-    return sig.includes('M20.01 4.0025H22.3515') || sig.includes('M30.8368 6.82427L28.015');
+    return sig.includes('M20.01 4.0025H22.3515')
+        || sig.includes('M30.8368 6.82427L28.015')
+        || sig.includes('M26 20c0-4.1-2.48-7.62-6-9.16V4h4V0H8v4h4v6.84C8.48 12.38 6 15.9 6 20v2h8v8l2 2 2-2v-8h8z');
 }
 
 function showPinDurationDialog() {

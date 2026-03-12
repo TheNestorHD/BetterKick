@@ -1,15 +1,12 @@
 {
   "manifest_version": 3,
   "name": "BetterKick – Todo lo que Kick debería tener",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Mejora tu experiencia en Kick tanto cómo viewer, cómo moderador o cómo Streamer.",
   "permissions": [
     "activeTab",
-    "scripting",
     "downloads",
-    "webRequest",
     "storage",
-    "alarms",
     "notifications"
   ],
   "host_permissions": [
@@ -42,7 +39,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "kickvoddownloader@example.com",
+      "id": "{b0f6a5d3-2f9f-4fb7-9d2f-8b2b0c0a6a45}",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
         "required": ["none"]
