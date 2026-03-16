@@ -3576,6 +3576,12 @@ function enableStreamDashboardDrag(wrapper) {
     const onPointerDown = (e) => {
         if (e.button !== 0) return;
         const rect = wrapper.getBoundingClientRect();
+        wrapper.style.position = 'fixed';
+        wrapper.style.left = `${Math.round(rect.left)}px`;
+        wrapper.style.top = `${Math.round(rect.top)}px`;
+        wrapper.style.right = 'auto';
+        wrapper.style.bottom = 'auto';
+        wrapper.style.transform = 'none';
         startX = e.clientX;
         startY = e.clientY;
         startLeft = rect.left;
@@ -3648,6 +3654,9 @@ function injectStreamDownloadButton() {
         }
         btn.classList.add('kvd-stream-dashboard');
         const useFixed = target === document.body || target === document.documentElement;
+        wrapper.style.cursor = 'move';
+        wrapper.style.touchAction = 'none';
+        enableStreamDashboardDrag(wrapper);
         if (useFixed) {
             wrapper.style.position = 'fixed';
             if (wrapper.dataset.kvdManualPosition !== 'true') {
@@ -3657,11 +3666,7 @@ function injectStreamDownloadButton() {
                 wrapper.style.right = 'auto';
                 wrapper.style.transform = 'none';
             }
-            wrapper.style.cursor = 'move';
-            wrapper.style.touchAction = 'none';
-            enableStreamDashboardDrag(wrapper);
         } else {
-            wrapper.style.cursor = 'default';
             const style = window.getComputedStyle(target);
             if (style.position === 'static') {
                 target.style.position = 'relative';

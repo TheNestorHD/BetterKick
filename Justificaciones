@@ -1,0 +1,20 @@
+BetterKick es una extensión diseñada exclusivamente para mejorar la experiencia en Kick.com: permite descargar VODs, grabar streams en vivo directamente desde los servidores de Kick al navegador del usuario y ofrece herramientas visuales y de moderación (resaltado de mensajes, biblioteca de comandos, amplificación de audio y utilidades para moderadores) sin recolectar datos personales ni usar servidores propios.
+
+activeTab se utiliza para interactuar únicamente con la pestaña activa donde el usuario tiene abierto Kick. La extensión necesita conocer y modificar el contenido de esa página (botones, overlays, controles de descarga y herramientas de moderación) solo cuando el usuario está en Kick, sin acceder al contenido de otras pestañas ni de otros sitios.
+
+alarms se utiliza, si es necesario, para programar tareas internas relacionadas con el funcionamiento de la extensión, como comprobaciones periódicas del estado de descargas o refresco de ciertos datos de configuración. Si en algún momento no se usara en el código, se mantendría únicamente para futuras mejoras vinculadas a estas tareas internas, nunca para rastrear al usuario.
+
+downloads se utiliza para crear las descargas de los VODs y de las grabaciones de streams en vivo. La extensión genera el archivo de vídeo localmente y luego llama a la API de descargas del navegador para que el usuario pueda guardarlo en su equipo, mostrando el diálogo estándar de “Guardar como” y respetando completamente la gestión de descargas del navegador.
+
+notifications se utiliza para enviar notificaciones de escritorio cuando una descarga termina o se produce un error importante, especialmente si el usuario tiene la pestaña de Kick en segundo plano. De esta forma, el usuario puede saber que el proceso ha finalizado sin tener que vigilar constantemente la página.
+
+scripting se solicita porque la extensión inyecta y ejecuta código propio (scripts y estilos) sobre las páginas de Kick para añadir botones de descarga, overlays de progreso, controles de grabación y utilidades de moderación. No se ejecuta código de terceros, solo los scripts incluidos en la propia extensión y siempre dentro de las páginas de Kick indicadas en los permisos de host.
+
+storage se utiliza exclusivamente para guardar configuración local en el navegador del usuario, como preferencias de resaltado de chat, biblioteca de comandos de moderación, ajustes de audio o banderas internas (por ejemplo, si ya se mostró un aviso). Estos datos se almacenan en chrome.storage.local y no se envían a ningún servidor externo.
+
+El uso de código remoto se limita a cargar recursos necesarios desde Kick (como playlists HLS o segmentos de vídeo) para poder descargar o grabar contenido que el usuario ya está viendo en la plataforma. La extensión no descarga ni ejecuta librerías de terceros desde servidores propios: todo el código ejecutable de BetterKick va empaquetado en la extensión, y lo único que se obtiene en remoto son los propios vídeos y datos de Kick necesarios para construir el archivo de salida.
+
+Los permisos de hosts se restringen a Kick.com y sus subdominios porque la extensión solo necesita funcionar en esa plataforma. Mejorar la interfaz, añadir botones, leer información del video o del chat y acceder a las URLs de los streams requiere permiso explícito sobre esos dominios. La extensión no intenta inyectarse ni actuar sobre otros sitios web.
+
+webRequest se utiliza, cuando es necesario, para inspeccionar o manejar las peticiones relacionadas con los streams de Kick (como playlists HLS y segmentos de vídeo) con el fin de poder descargarlos o procesarlos correctamente desde el propio navegador. Este permiso no se usa para bloquear, alterar o rastrear navegación general, sino para asegurar que el flujo de descarga y grabación de vídeo desde Kick funcione de forma fiable y sin depender de servidores externos.
+
