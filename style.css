@@ -54,6 +54,21 @@
     z-index: 10001;
 }
 
+.kvd-stream-dashboard-actions {
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.kvd-stream-dashboard-actions:active {
+    cursor: grabbing;
+}
+
+.kvd-stream-dashboard-actions button {
+    cursor: pointer;
+}
+
 .kvd-stream-dashboard-actions .kvd-stream-tooltip {
     top: calc(100% + 6px);
     bottom: auto;

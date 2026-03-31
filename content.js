@@ -3571,10 +3571,12 @@ function enableStreamDashboardDrag(wrapper) {
     let height = 0;
     let dragging = false;
     let moved = false;
-    let lastDragAt = 0;
+    let wasDragged = false;
 
     const onPointerDown = (e) => {
         if (e.button !== 0) return;
+        // Don't capture if clicking on a button inside the wrapper
+        if (e.target.closest('button')) return;
         const rect = wrapper.getBoundingClientRect();
         wrapper.style.position = 'fixed';
         wrapper.style.left = `${Math.round(rect.left)}px`;
@@ -3590,6 +3592,7 @@ function enableStreamDashboardDrag(wrapper) {
         height = rect.height;
         dragging = true;
         moved = false;
+        wasDragged = false;
         try {
             wrapper.setPointerCapture(e.pointerId);
         } catch (_) {}
@@ -3601,6 +3604,7 @@ function enableStreamDashboardDrag(wrapper) {
         const dy = e.clientY - startY;
         if (!moved && Math.hypot(dx, dy) < 3) return;
         moved = true;
+        wasDragged = true;
         const maxLeft = Math.max(0, window.innerWidth - width);
         const maxTop = Math.max(0, window.innerHeight - height);
         const nextLeft = Math.min(maxLeft, Math.max(0, startLeft + dx));
@@ -3611,7 +3615,6 @@ function enableStreamDashboardDrag(wrapper) {
         wrapper.style.bottom = 'auto';
         wrapper.style.transform = 'none';
         wrapper.dataset.kvdManualPosition = 'true';
-        lastDragAt = Date.now();
     };
 
     const onPointerUp = (e) => {
@@ -3625,10 +3628,12 @@ function enableStreamDashboardDrag(wrapper) {
     wrapper.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    // Only block clicks if we actually dragged — buttons inside wrapper always work
     wrapper.addEventListener('click', (e) => {
-        if (Date.now() - lastDragAt < 250) {
+        if (wasDragged) {
             e.preventDefault();
             e.stopPropagation();
+            wasDragged = false;
         }
     }, true);
 }
