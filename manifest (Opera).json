@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "BetterKick",
+"version": "1.0.3",
+  "description": "Mejora tu experiencia en Kick tanto cómo viewer, cómo moderador o cómo Streamer.",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://kick.com/*",
+    "https://*.kick.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://kick.com/*", "https://dashboard.kick.com/*"],
+      "js": ["mux.min.js", "content.js"],
+      "css": ["style.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "BetterKick – Todo lo que Kick debería tener",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{b0f6a5d3-2f9f-4fb7-9d2f-8b2b0c0a6a45}",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*", "locales/*.json"],
+      "matches": ["https://kick.com/*", "https://dashboard.kick.com/*"]
+    }
+  ]
+}
