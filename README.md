@@ -4,6 +4,13 @@
 
 ![Icon](icons/icon128.png)
 
+Download Betterkick on your prefeered browser!
+¡Descarga Betterkick en tu navegador preferido!
+Edge: https://microsoftedge.microsoft.com/addons/detail/betterkick-%E2%80%93-todo-lo-que-/hlljgchffgkiodgdpdpdlihhipjiable
+Chrome: https://chromewebstore.google.com/detail/betterkick-%E2%80%93-todo-lo-que/nfcedahliilnfbfiigkeaidoimnpnhfi
+Firefox: https://addons.mozilla.org/es-MX/firefox/addon/betterkick/
+Opera: Go to Releases and download the extension / Ve a "Releases" y descarga la extensión.
+
 ## 🇬🇧 English
 
 ### 🚀 Key Features
