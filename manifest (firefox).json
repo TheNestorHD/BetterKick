@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BetterKick – Todo lo que Kick debería tener",
-  "version": "1.0.3",
+  "version": "1.1.1",
   "description": "Mejora tu experiencia en Kick tanto cómo viewer, cómo moderador o cómo Streamer.",
   "permissions": [
     "activeTab",
