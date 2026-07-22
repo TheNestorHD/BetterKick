@@ -145,50 +145,58 @@
 }
 
 /* Overlay Styles */
+/* Compact floating panel instead of a full-viewport blocking overlay,
+   so the stream/chat stay visible and usable while a VOD downloads. */
 #kick-vod-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.9); /* Darker background */
-    backdrop-filter: blur(8px); /* Stronger blur */
+    bottom: 20px;
+    right: 20px;
+    width: 340px;
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    background: rgba(15, 15, 15, 0.96);
+    backdrop-filter: blur(8px);
+    border: 1px solid #333;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
     z-index: 20000;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    align-items: stretch;
+    justify-content: flex-start;
     color: white;
     font-family: 'Inter', sans-serif;
+    padding: 16px 18px;
     animation: kvd-fade-in 0.3s ease-out;
 }
 
 #kick-vod-overlay h2 {
-    margin-bottom: 10px;
-    font-size: 28px;
+    margin: 0 0 8px 0;
+    font-size: 16px;
     color: #53fc18;
-    text-shadow: 0 0 15px rgba(83, 252, 24, 0.4); /* Green glow */
-    text-align: center;
+    text-shadow: none;
+    text-align: left;
 }
 
 .kvd-overlay-warning {
     color: #fff;
-    text-align: center;
+    text-align: left;
     white-space: pre-wrap;
-    margin-bottom: 40px; /* More separation */
-    font-size: 16px;
-    opacity: 0.9;
-    line-height: 1.5;
+    margin-bottom: 12px;
+    font-size: 12px;
+    opacity: 0.8;
+    line-height: 1.4;
 }
 
 .progress-bar-container {
-    width: 60%;
-    max-width: 800px;
-    height: 24px; /* Slightly taller */
+    width: 100%;
+    max-width: none;
+    height: 14px;
     background: #222;
-    border-radius: 12px;
+    border-radius: 7px;
     overflow: hidden;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
     border: 1px solid #333;
 }
@@ -218,34 +226,35 @@
 }
 
 .progress-text, .eta-text, .size-text {
-    margin-top: 8px;
-    font-size: 15px;
+    margin-top: 4px;
+    font-size: 12px;
     color: #ccc;
-    text-align: center;
+    text-align: left;
 }
 
 .eta-text {
     font-weight: bold;
     color: #fff;
-    text-shadow: 0 0 10px rgba(255,255,255,0.2);
-    margin-bottom: 30px;
+    text-shadow: none;
+    margin-bottom: 10px;
 }
 
 .kvd-btn-cancel-overlay {
     background: rgba(255, 0, 0, 0.1);
     color: #ff4444;
-    border: 2px solid #ff4444;
-    padding: 12px 24px;
+    border: 1px solid #ff4444;
+    padding: 8px 16px;
     border-radius: 6px;
-    font-size: 16px;
+    font-size: 13px;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
     font-family: 'Inter', sans-serif;
-    margin-top: 20px;
+    margin-top: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    box-shadow: 0 0 10px rgba(255, 68, 68, 0.1);
+    box-shadow: none;
+    align-self: flex-start;
 }
 
 .kvd-btn-cancel-overlay:hover {
@@ -262,8 +271,8 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(5px);
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
     z-index: 10001;
     display: flex;
     align-items: center;
@@ -274,9 +283,9 @@
 
 .kvd-modal-content {
     background: #191b1f;
-    padding: 25px;
-    border-radius: 8px;
-    width: 450px;
+    padding: 20px;
+    border-radius: 10px;
+    width: 380px;
     max-width: 90%;
     color: #fff;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);

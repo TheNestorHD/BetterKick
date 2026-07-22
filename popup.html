@@ -258,6 +258,13 @@
         <input id="amp-slider" type="range" min="0" max="48" step="1" value="0" style="width:100%;">
     </div>
     
+    <div id="panel-positions-section" style="margin-top: 12px; padding: 10px; background:#141414; border-radius:6px; border:1px solid #333;">
+        <span style="font-size:12px; font-weight:700; color:#53fc18; display:block; margin-bottom:6px;" data-kvd-i18n="popup.panels.title">Panel positions</span>
+        <p style="font-size:11px; color:#888; margin: 0 0 8px;" data-kvd-i18n="popup.panels.hint">Downloader, recorder, and streamer-mode panels remember where you dragged them.</p>
+        <button id="reset-panel-positions-btn" class="add-btn" data-kvd-i18n="popup.panels.reset_button">Reset panel positions</button>
+        <span id="panel-positions-status" style="font-size:11px; min-height:14px; display:block; margin-top:4px;"></span>
+    </div>
+
     <div id="library-section">
         <div class="lib-header">
             <span class="lib-title" data-kvd-i18n="popup.library.title">Admin Command Library</span>
@@ -296,6 +303,25 @@
             </label>
             <input type="text" id="highlight-words" placeholder="Keywords (comma separated)" data-kvd-i18n="popup.highlight.placeholder" data-kvd-i18n-attr="placeholder">
             <button id="highlight-save" class="add-btn" data-kvd-i18n="popup.highlight.save_button">Save Highlights</button>
+        </div>
+
+        <div class="admin-card" id="webhook-section">
+            <span class="lib-title" data-kvd-i18n="popup.webhook.title">Discord Webhooks</span>
+            <p style="font-size: 11px; color: #888; margin: -4px 0 2px;" data-kvd-i18n="popup.webhook.hint">Get notified in a Discord channel about downloads.</p>
+            <input type="text" id="webhook-url" placeholder="https://discord.com/api/webhooks/..." data-kvd-i18n="popup.webhook.url_placeholder" data-kvd-i18n-attr="placeholder">
+            <label class="config-row">
+                <input type="checkbox" id="webhook-notify-vod">
+                <span data-kvd-i18n="popup.webhook.notify_vod">VOD download finished</span>
+            </label>
+            <label class="config-row">
+                <input type="checkbox" id="webhook-notify-live">
+                <span data-kvd-i18n="popup.webhook.notify_live">Live recording started/finished</span>
+            </label>
+            <div style="display:flex; gap:5px;">
+                <button id="webhook-save" class="add-btn" style="flex:1;" data-kvd-i18n="popup.webhook.save_button">Save</button>
+                <button id="webhook-test" class="add-btn" style="flex:1; background:#191b1f; color:#53fc18; border:1px solid #53fc18;" data-kvd-i18n="popup.webhook.test_button">Send Test</button>
+            </div>
+            <span id="webhook-status" style="font-size:11px; min-height:14px; display:block;"></span>
         </div>
     </div>
 

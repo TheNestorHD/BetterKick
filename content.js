@@ -869,10 +869,27 @@ function getPageTitleClean() {
     const metaTitle = getMetaContent('og:title');
     const h1 = document.querySelector('h1');
     const raw = normalizeTitleText(metaTitle || (h1 && h1.textContent) || document.title || '');
-    return raw.replace(/\s*\|\s*Kick.*$/i, '').replace(/\s*-\s*Kick.*$/i, '').trim();
+    // Kick's VOD pages use a document.title template like
+    // "{channel} - Watch the VOD on Kick", which doesn't match the generic
+    // " - Kick..." suffix pattern below (the hyphen isn't right before
+    // "Kick"). Strip that specific template first, then fall back to the
+    // generic patterns for other page types.
+    return raw
+        .replace(/\s*-\s*Watch the VOD on Kick.*$/i, '')
+        .replace(/\s*\|\s*Kick.*$/i, '')
+        .replace(/\s*-\s*Kick.*$/i, '')
+        .trim();
 }
 
 function getVodTitle() {
+    // Kick reuses the same [data-testid="livestream-title"] element for the
+    // VOD page's title bar (confirmed from live DOM), so use it the same
+    // way getStreamTitle() does for live streams, before falling back to
+    // parsing document.title (which is just a generic "{channel} - Watch
+    // the VOD on Kick" template and doesn't contain the real title).
+    const titleEl = document.querySelector('[data-testid="livestream-title"]');
+    const realTitle = normalizeTitleText(titleEl ? (titleEl.getAttribute('title') || titleEl.textContent) : '');
+    if (realTitle) return realTitle;
     return getPageTitleClean();
 }
 
@@ -988,9 +1005,9 @@ function updateOverlay(progress, text = t('download.overlay.title'), etaText = '
         const disclaimer = document.createElement('div');
         disclaimer.className = 'disclaimer-text';
         disclaimer.style.marginTop = '15px';
-        disclaimer.style.fontSize = '0.85em';
+        disclaimer.style.fontSize = '0.75em';
         disclaimer.style.color = '#ffcc00';
-        disclaimer.style.maxWidth = '90%';
+        disclaimer.style.maxWidth = 'none';
         disclaimer.style.lineHeight = '1.4';
         disclaimer.style.border = '1px solid #555';
         disclaimer.style.background = 'rgba(0,0,0,0.3)';
@@ -1025,9 +1042,8 @@ function updateOverlay(progress, text = t('download.overlay.title'), etaText = '
         setI18nText(cancelBtn, 'download.cancel_button');
         overlay.appendChild(cancelBtn);
         document.body.appendChild(overlay);
-        
-        // Prevent scroll
-        document.body.style.overflow = 'hidden';
+        enableDraggablePanel(overlay, 'download-overlay');
+
         mutePageAudio();
 
         // Bind cancel button
@@ -1527,9 +1543,10 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
                     startSeconds,
                     endSeconds,
                     explicitVideoId,
-                    explicitTitle,
+                    explicitTitle: explicitTitle || getVodTitle(),
                     appendMode,
-                    fileName
+                    fileName,
+                    channel: getChannelSlug()
                 }
             }).catch(() => {});
             return;
@@ -1690,7 +1707,7 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
                 let targetUrl = bestVariant.url;
                 if (isAudioOnly) targetUrl += '#audio_only';
 
-                return downloadSegments(targetUrl, btn, videoDurationMs, startSeconds, endSeconds, handle, forceMemory, explicitVideoId, explicitTitle);
+                return downloadSegments(targetUrl, btn, videoDurationMs, startSeconds, endSeconds, handle, forceMemory, explicitVideoId, explicitTitle, appendMode);
             }
             
             // Fallback to simple search if parsing failed
@@ -1699,7 +1716,7 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
                 let newUrl = m3u8Match.startsWith('http') ? m3u8Match : baseUrl + m3u8Match;
                 console.log(`Fallback: Found .m3u8 link, redirecting to: ${newUrl}`);
                 if (isAudioOnly) newUrl += '#audio_only';
-                return downloadSegments(newUrl, btn, videoDurationMs, startSeconds, endSeconds, handle, forceMemory, explicitVideoId, explicitTitle);
+                return downloadSegments(newUrl, btn, videoDurationMs, startSeconds, endSeconds, handle, forceMemory, explicitVideoId, explicitTitle, appendMode);
             }
         }
 
@@ -1800,39 +1817,59 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
                     
                     const MAX_GHOST_SEGMENTS = 50; // Try up to 50 extra segments (approx 8 mins)
                     let ghostCount = 0;
-                    
+
                     console.log(`Attempting to discover ghost segments starting from ${currentNum + 1}...`);
                     updateButton(btn, t('download.checking_hidden_segments'), true);
 
-                    let consecutiveErrors = 0;
                     const MAX_CONSECUTIVE_ERRORS = 5;
+                    const GHOST_BATCH_SIZE = 5;
 
-                    // We need to wait for this discovery to finish before proceeding
-                    // Using a loop with await is fine here
+                    // Probe a batch of consecutive segment numbers in parallel instead of
+                    // one at a time, and use a Range request for just the first byte
+                    // instead of a full GET, since we only need to confirm the segment
+                    // exists (not download its whole body). This was previously making
+                    // up to ~55 sequential full-segment downloads on every VOD download,
+                    // adding real latency (and wasted bandwidth) before the progress bar
+                    // even started moving.
+                    let consecutiveErrors = 0;
+                    outer:
                     while (ghostCount < MAX_GHOST_SEGMENTS && consecutiveErrors < MAX_CONSECUTIVE_ERRORS) {
-                        currentNum++;
-                        const nextSegName = `${prefix}${currentNum}${suffix}${query}`;
-                        const nextSegUrl = `${baseUrlForSeg}${nextSegName}`;
-                        
-                        try {
-                            // Use GET instead of HEAD as some CDNs block HEAD requests or return 403
-                            // We don't need the full content yet, but standard fetch is safest for auth/existence check
-                            const checkRes = await fetch(nextSegUrl, { method: 'GET' }); // Changed HEAD to GET
-                            
-                            if (checkRes.ok) {
-                                console.log(`Found ghost segment: ${nextSegName}`);
-                                segments.push(nextSegUrl);
+                        const batchNums = [];
+                        for (let i = 0; i < GHOST_BATCH_SIZE && (ghostCount + batchNums.length) < MAX_GHOST_SEGMENTS; i++) {
+                            batchNums.push(++currentNum);
+                        }
+                        if (batchNums.length === 0) break;
+
+                        const batchResults = await Promise.all(batchNums.map(async (num) => {
+                            const nextSegName = `${prefix}${num}${suffix}${query}`;
+                            const nextSegUrl = `${baseUrlForSeg}${nextSegName}`;
+                            try {
+                                const checkRes = await fetch(nextSegUrl, { method: 'GET', headers: { 'Range': 'bytes=0-0' } });
+                                // A CDN that ignores Range still returns 200 with the full
+                                // body, which is fine — 206/200 both confirm existence.
+                                return { num, url: nextSegUrl, ok: checkRes.ok };
+                            } catch (e) {
+                                console.log(`Ghost segment search error at ${num}:`, e);
+                                return { num, url: nextSegUrl, ok: false };
+                            }
+                        }));
+
+                        // Preserve original ordering/semantics: walk results in ascending
+                        // segment order so we stop at the first gap, same as before.
+                        batchResults.sort((a, b) => a.num - b.num);
+                        for (const result of batchResults) {
+                            if (result.ok) {
+                                console.log(`Found ghost segment: ${result.url}`);
+                                segments.push(result.url);
                                 // Assume 10s duration for ghost segments (standard HLS target)
                                 calculatedDuration += 10;
                                 ghostCount++;
-                                consecutiveErrors = 0; // Reset error count on success
+                                consecutiveErrors = 0;
                             } else {
-                                console.log(`Ghost segment check failed at ${currentNum} (Status: ${checkRes.status})`);
+                                console.log(`Ghost segment check failed at ${result.num}`);
                                 consecutiveErrors++;
+                                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) break outer;
                             }
-                        } catch (e) {
-                            console.log(`Ghost segment search error at ${currentNum}:`, e);
-                            consecutiveErrors++;
                         }
                     }
                     
@@ -2185,6 +2222,17 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
             }
         };
 
+        // How many segments to accumulate before flushing the transmuxer.
+        // Flushing after every single segment forces mux.js to close a
+        // separate MP4 fragment per .ts file; when segments have irregular
+        // durations (common when the streamer's connection was unstable),
+        // the audio/video timestamp rounding at each fragment boundary adds
+        // up and produces a growing A/V desync over the length of the VOD.
+        // Batching segments before flushing lets mux.js keep a single
+        // continuous timeline across them, eliminating that drift.
+        const TRANSMUX_FLUSH_BATCH_SIZE = 15;
+        let segmentsSinceFlush = 0;
+
         const tryProcess = () => {
             while (results.has(processingIndex)) {
                 const segData = results.get(processingIndex);
@@ -2192,7 +2240,11 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
                 if (segData) {
                     const sourceBytes = new Uint8Array(segData);
                     transmuxer.push(sourceBytes);
-                    transmuxer.flush();
+                    segmentsSinceFlush++;
+                    if (segmentsSinceFlush >= TRANSMUX_FLUSH_BATCH_SIZE) {
+                        transmuxer.flush();
+                        segmentsSinceFlush = 0;
+                    }
                 }
                 processingIndex++;
             }
@@ -2331,7 +2383,15 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
         // 100% reached, but still writing/closing
         updateOverlay(100, t('download.finalizing_title'), t('download.please_wait'), totalBytes, 0, '');
 
+        // Flush any segments pushed since the last batch flush (see
+        // TRANSMUX_FLUSH_BATCH_SIZE above) so the tail of the VOD isn't lost.
+        if (segmentsSinceFlush > 0) {
+            transmuxer.flush();
+            segmentsSinceFlush = 0;
+        }
+
         flushWriteBuffer();
+
         if (writable) {
             // Wait for all pending writes to complete
             console.log('Waiting for pending file writes to complete...');
@@ -2400,6 +2460,17 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
         console.log(`[KVD Perf] time ${totalSeconds.toFixed(1)}s, avgFlush ${formatBytes(avgFlushBytes)}, maxWriteBuffer ${formatBytes(writePerf.maxBufferBytes)}, flushes ${writePerf.flushCount}`);
 
         sendNotification(t('download.done_title'), t('download.done_message', { video: getVideoId() || t('download.video_placeholder') }));
+        chrome.runtime.sendMessage({
+            type: 'DISCORD_WEBHOOK_NOTIFY',
+            event: 'vod_complete',
+            data: {
+                channel: getChannelSlug() || '',
+                title: explicitTitle || getVodTitle() || '',
+                duration: formatDuration(videoDurationMs),
+                size: formatBytes(totalBytes),
+                url: window.location.href
+            }
+        }).catch(() => {});
         updateButton(btn, t('download.button.complete'), false);
         isDownloading = false;
         allowTabInactivity();
@@ -3273,6 +3344,11 @@ async function startStreamDownload(btn) {
     streamDownloadState.active = true;
     streamDownloadState.cancelAction = null;
     isStreamDownloading = true;
+    chrome.runtime.sendMessage({
+        type: 'DISCORD_WEBHOOK_NOTIFY',
+        event: 'live_start',
+        data: { channel: getChannelSlug() || '', url: getChannelSlug() ? `https://kick.com/${getChannelSlug()}` : '' }
+    }).catch(() => {});
     preventTabInactivity();
     window.addEventListener('beforeunload', handleStreamDownloadExit);
     setStreamButtonState(btn, 'downloading');
@@ -3321,6 +3397,11 @@ async function startStreamDownload(btn) {
     });
     let initSegmentWritten = false;
     let initSegmentBytes = null;
+    // Live recording polls every ~2s, so a small batch keeps the on-disk
+    // file reasonably current while still avoiding a flush per single
+    // segment (see the VOD download fix above for why that causes drift).
+    const STREAM_FLUSH_BATCH_SIZE = 5;
+    let segmentsSinceFlush = 0;
     transmuxer.on('data', (segment) => {
         if (!initSegmentWritten) {
             const initSeg = new Uint8Array(segment.initSegment);
@@ -3408,7 +3489,15 @@ async function startStreamDownload(btn) {
                         if (controller.signal.aborted) break;
                         const data = new Uint8Array(buffer);
                         transmuxer.push(data);
-                        transmuxer.flush();
+                        segmentsSinceFlush++;
+                        // Same fix as VOD download: don't flush the transmuxer
+                        // per segment, or per-fragment timestamp rounding will
+                        // drift audio vs video over a long recording,
+                        // especially when segments arrive irregularly.
+                        if (segmentsSinceFlush >= STREAM_FLUSH_BATCH_SIZE) {
+                            transmuxer.flush();
+                            segmentsSinceFlush = 0;
+                        }
                         streamDownloadState.downloadedBytes += data.byteLength;
                         streamDownloadState.downloadedDurationSec += seg.duration || 0;
                         streamDownloadState.downloadedSegments.add(seg.url);
@@ -3437,6 +3526,12 @@ async function startStreamDownload(btn) {
         }
     } finally {
         const cancelAction = streamDownloadState.cancelAction;
+        // Flush whatever's left in the batch (see STREAM_FLUSH_BATCH_SIZE
+        // above) so the last few seconds of the recording aren't dropped.
+        if (segmentsSinceFlush > 0) {
+            transmuxer.flush();
+            segmentsSinceFlush = 0;
+        }
         flushWriteBuffer();
         if (writable) {
             await fileWriteChain;
@@ -3499,6 +3594,19 @@ async function startStreamDownload(btn) {
         streamDownloadState.writable = null;
         streamDownloadState.active = false;
         isStreamDownloading = false;
+        {
+            const durationMs = streamDownloadState.startedAt ? (Date.now() - streamDownloadState.startedAt) : 0;
+            const channelSlug = getChannelSlug() || '';
+            chrome.runtime.sendMessage({
+                type: 'DISCORD_WEBHOOK_NOTIFY',
+                event: cancelAction === 'discard' ? 'live_cancelled' : 'live_end',
+                data: {
+                    channel: channelSlug,
+                    duration: formatStreamDuration(Math.round(durationMs / 1000)),
+                    url: channelSlug ? `https://kick.com/${channelSlug}` : ''
+                }
+            }).catch(() => {});
+        }
         allowTabInactivity();
         window.removeEventListener('beforeunload', handleStreamDownloadExit);
         streamDownloadState.cancelAction = null;
@@ -3560,9 +3668,43 @@ function getDashboardStreamTarget() {
     return document.body;
 }
 
-function enableStreamDashboardDrag(wrapper) {
+// Generic draggable-panel helper: makes `wrapper` draggable by pointer, and
+// remembers its position across sessions in chrome.storage.local, keyed by
+// `panelId` so different panels (download overlay, stream dashboard
+// actions, streamer mode status, etc.) each keep their own spot.
+const PANEL_POSITION_PREFIX = 'kvd_panel_pos_';
+
+function applySavedPanelPosition(wrapper, panelId) {
+    chrome.storage.local.get([PANEL_POSITION_PREFIX + panelId], (result) => {
+        const pos = result[PANEL_POSITION_PREFIX + panelId];
+        if (!pos || typeof pos.left !== 'number' || typeof pos.top !== 'number') return;
+        // Clamp to the current viewport in case the window was resized
+        // (or a different monitor) since the position was saved.
+        const rect = wrapper.getBoundingClientRect();
+        const maxLeft = Math.max(0, window.innerWidth - (rect.width || 0));
+        const maxTop = Math.max(0, window.innerHeight - (rect.height || 0));
+        const left = Math.min(maxLeft, Math.max(0, pos.left));
+        const top = Math.min(maxTop, Math.max(0, pos.top));
+        wrapper.style.position = 'fixed';
+        wrapper.style.left = `${Math.round(left)}px`;
+        wrapper.style.top = `${Math.round(top)}px`;
+        wrapper.style.right = 'auto';
+        wrapper.style.bottom = 'auto';
+        wrapper.style.transform = 'none';
+        wrapper.dataset.kvdManualPosition = 'true';
+    });
+}
+
+function savePanelPosition(panelId, left, top) {
+    chrome.storage.local.set({ [PANEL_POSITION_PREFIX + panelId]: { left, top } });
+}
+
+function enableDraggablePanel(wrapper, panelId) {
     if (!wrapper || wrapper.dataset.kvdDraggable === 'true') return;
     wrapper.dataset.kvdDraggable = 'true';
+
+    if (panelId) applySavedPanelPosition(wrapper, panelId);
+
     let startX = 0;
     let startY = 0;
     let startLeft = 0;
@@ -3572,6 +3714,8 @@ function enableStreamDashboardDrag(wrapper) {
     let dragging = false;
     let moved = false;
     let wasDragged = false;
+    let finalLeft = 0;
+    let finalTop = 0;
 
     const onPointerDown = (e) => {
         if (e.button !== 0) return;
@@ -3615,6 +3759,8 @@ function enableStreamDashboardDrag(wrapper) {
         wrapper.style.bottom = 'auto';
         wrapper.style.transform = 'none';
         wrapper.dataset.kvdManualPosition = 'true';
+        finalLeft = nextLeft;
+        finalTop = nextTop;
     };
 
     const onPointerUp = (e) => {
@@ -3623,6 +3769,9 @@ function enableStreamDashboardDrag(wrapper) {
         try {
             wrapper.releasePointerCapture(e.pointerId);
         } catch (_) {}
+        if (moved && panelId) {
+            savePanelPosition(panelId, finalLeft, finalTop);
+        }
     };
 
     wrapper.addEventListener('pointerdown', onPointerDown);
@@ -3661,7 +3810,7 @@ function injectStreamDownloadButton() {
         const useFixed = target === document.body || target === document.documentElement;
         wrapper.style.cursor = 'move';
         wrapper.style.touchAction = 'none';
-        enableStreamDashboardDrag(wrapper);
+        enableDraggablePanel(wrapper, 'stream-dashboard-actions');
         if (useFixed) {
             wrapper.style.position = 'fixed';
             if (wrapper.dataset.kvdManualPosition !== 'true') {
@@ -3789,8 +3938,18 @@ function getChannelSlug() {
         return getDashboardChannelSlug();
     }
 
+    // Previously this only matched the channel homepage (exactly one path
+    // segment), so any deeper page — VOD pages (/channel/videos/uuid),
+    // clips, etc. — always returned null. The channel slug is always the
+    // first path segment unless that segment is itself one of Kick's
+    // reserved non-channel top-level routes.
+    const RESERVED_TOP_LEVEL = new Set([
+        'video', 'videos', 'browse', 'category', 'categories', 'search',
+        'following', 'subscriptions', 'wallet', 'settings', 'notifications',
+        'messages', 'clips', 'leaderboards', 'events', 'moderator', 'dashboard'
+    ]);
     const parts = window.location.pathname.split('/').filter(p => p);
-    if (parts.length === 1 && parts[0] !== 'video' && parts[0] !== 'videos') {
+    if (parts.length >= 1 && !RESERVED_TOP_LEVEL.has(parts[0].toLowerCase())) {
         return parts[0];
     }
     return null;
@@ -3812,6 +3971,7 @@ async function runAutoDownloadFlow(slug) {
     statusDiv.style.cssText = 'position: fixed; top: 80px; right: 20px; background: rgba(0,0,0,0.9); color: #53fc18; padding: 20px; border-radius: 8px; z-index: 99999; font-family: "Inter", sans-serif; border: 2px solid #53fc18; box-shadow: 0 0 20px rgba(83, 252, 24, 0.3); font-size: 14px; max-width: 300px;';
     statusDiv.innerHTML = t('sr.status.waiting_initial');
     document.body.appendChild(statusDiv);
+    enableDraggablePanel(statusDiv, 'streamer-mode-status');
 
     try {
         let secondsLeft = 120;
@@ -4443,6 +4603,9 @@ function injectButton() {
 }
 
 // Check if we need to auto-trigger download from thumbnail click
+let autoDownloadStableBtn = null;
+let autoDownloadStableSince = 0;
+
 function checkAutoDownloadTrigger() {
     const autoDl = sessionStorage.getItem('kvd_auto_download');
     if (!autoDl) return;
@@ -4450,15 +4613,61 @@ function checkAutoDownloadTrigger() {
     const targetId = sessionStorage.getItem('kvd_auto_download_id');
     const currentId = getVideoId();
 
-    if (currentId && targetId === currentId) {
+    if (currentId && targetId && targetId.toLowerCase() !== currentId.toLowerCase() && !sessionStorage.getItem('kvd_auto_download_mismatch_logged')) {
+        console.warn('BetterKick: Auto-download ID mismatch — thumbnail ID vs current page ID:', targetId, currentId);
+        sessionStorage.setItem('kvd_auto_download_mismatch_logged', '1');
+    }
+
+    // Case-insensitive comparison: if the UUID casing ever differs between
+    // where it was read (thumbnail href) and where it's read again (VOD
+    // page URL), a strict === here would never match, leaving the flag
+    // stuck in sessionStorage forever and silently failing every time.
+    if (currentId && targetId && targetId.toLowerCase() === currentId.toLowerCase()) {
+        // Give up after a bounded window instead of retrying silently
+        // forever if the download button never shows up (e.g. Kick changed
+        // its page layout and none of injectButton()'s selectors match).
+        let deadline = parseInt(sessionStorage.getItem('kvd_auto_download_deadline'), 10);
+        if (!deadline) {
+            deadline = Date.now() + 20000;
+            sessionStorage.setItem('kvd_auto_download_deadline', String(deadline));
+        }
+
+        // Don't just wait for the 3-second polling cycle to inject the
+        // button — try immediately every time we get here (every 1s) so we
+        // don't lose time to the slower injection cadence.
+        if (!document.querySelector('.kick-vod-download-btn')) {
+            injectButton();
+        }
+
         const btn = document.querySelector('.kick-vod-download-btn');
         if (btn && !btn.disabled) {
+            // Kick keeps re-rendering/hydrating the page for a bit after
+            // our button first shows up; clicking immediately can land on
+            // a button instance that's about to get replaced/reset by that
+            // re-render, silently swallowing the click. Require the button
+            // to stay present+enabled across a couple of checks (~1.2s)
+            // before we trust it's settled enough to click.
+            if (!autoDownloadStableBtn || autoDownloadStableBtn !== btn) {
+                autoDownloadStableBtn = btn;
+                autoDownloadStableSince = Date.now();
+                return;
+            }
+            if (Date.now() - autoDownloadStableSince < 1200) {
+                return;
+            }
+
             console.log('BetterKick: Auto-triggering download for ID:', currentId);
-            // Clear flags immediately
             sessionStorage.removeItem('kvd_auto_download');
             sessionStorage.removeItem('kvd_auto_download_id');
-            
+            sessionStorage.removeItem('kvd_auto_download_deadline');
+            sessionStorage.removeItem('kvd_auto_download_mismatch_logged');
             btn.click();
+        } else if (Date.now() > deadline) {
+            console.warn('BetterKick: Auto-download trigger timed out waiting for the download button.');
+            sessionStorage.removeItem('kvd_auto_download');
+            sessionStorage.removeItem('kvd_auto_download_id');
+            sessionStorage.removeItem('kvd_auto_download_deadline');
+            sessionStorage.removeItem('kvd_auto_download_mismatch_logged');
         }
     }
 }
@@ -4791,6 +5000,7 @@ function findPinButtonFromTarget(target) {
     if (!btn) return null;
     if (isDashboardBackButton(btn)) return null;
     if (isChannelRewardButton(btn)) return null;
+    if (isNearRewardContext(btn)) return null;
     const label = (btn.getAttribute('aria-label') || '').toLowerCase();
     const text = (btn.textContent || '').toLowerCase();
     if (label.includes('anclar') || label.includes('pin') || text.includes('anclar') || text.includes('pin') || text.includes('fijar')) {
@@ -4798,6 +5008,26 @@ function findPinButtonFromTarget(target) {
     }
     if (buttonHasPinIcon(btn)) return btn;
     return null;
+}
+
+// Reward/redemption rows on Kick can appear in more layout variants than
+// isChannelRewardButton() (which only inspects the button's own children)
+// can cover. As a safety net, also walk a few levels UP from the clicked
+// button looking for reward-context hints, so a layout tweak on Kick's end
+// doesn't make the pin-duration dialog pop up on a points redemption again.
+function isNearRewardContext(btn) {
+    if (!btn) return false;
+    const rewardHints = ['pedidos', 'pedido', 'requests', 'request', 'redemptions', 'redemption', 'canjes', 'canje', 'reward', 'rewards'];
+    let node = btn;
+    for (let depth = 0; depth < 4 && node; depth++) {
+        const testId = (node.getAttribute && (node.getAttribute('data-testid') || '')).toLowerCase();
+        const className = (typeof node.className === 'string' ? node.className : '').toLowerCase();
+        if (rewardHints.some(hint => testId.includes(hint) || className.includes(hint))) {
+            return true;
+        }
+        node = node.parentElement;
+    }
+    return false;
 }
 
 function isChannelRewardButton(btn) {

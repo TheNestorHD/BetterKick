@@ -94,6 +94,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    initPanelPositionsUI();
+
     // Check if we are on a Kick tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
@@ -153,6 +155,7 @@ function initLibraryUI(currentSlug) {
     
     loadLibrary(currentSlug);
     initHighlightUI();
+    initWebhookUI();
     
     const addBtn = document.getElementById('add-btn');
     if (addBtn) {
@@ -177,6 +180,83 @@ function initLibraryUI(currentSlug) {
             }
         });
     }
+}
+
+function initPanelPositionsUI() {
+    const btn = document.getElementById('reset-panel-positions-btn');
+    const statusEl = document.getElementById('panel-positions-status');
+    if (!btn || !statusEl) return;
+    btn.addEventListener('click', () => {
+        chrome.storage.local.get(null, (all) => {
+            const keys = Object.keys(all).filter((k) => k.startsWith('kvd_panel_pos_'));
+            if (keys.length === 0) {
+                statusEl.textContent = t('popup.panels.nothing_to_reset');
+                statusEl.style.color = '#ccc';
+                setTimeout(() => { statusEl.textContent = ''; }, 3000);
+                return;
+            }
+            chrome.storage.local.remove(keys, () => {
+                statusEl.textContent = t('popup.panels.reset_done');
+                statusEl.style.color = '#53fc18';
+                setTimeout(() => { statusEl.textContent = ''; }, 3000);
+            });
+        });
+    });
+}
+
+function initWebhookUI() {
+    const urlInput = document.getElementById('webhook-url');
+    const notifyVod = document.getElementById('webhook-notify-vod');
+    const notifyLive = document.getElementById('webhook-notify-live');
+    const saveBtn = document.getElementById('webhook-save');
+    const testBtn = document.getElementById('webhook-test');
+    const statusEl = document.getElementById('webhook-status');
+    if (!urlInput || !notifyVod || !notifyLive || !saveBtn || !testBtn || !statusEl) return;
+
+    chrome.storage.local.get(['kvd_discord_webhook_config'], (result) => {
+        const config = result.kvd_discord_webhook_config || {};
+        urlInput.value = config.url || '';
+        notifyVod.checked = !!config.notifyVod;
+        notifyLive.checked = !!config.notifyLive;
+    });
+
+    const setStatus = (text, color) => {
+        statusEl.textContent = text;
+        statusEl.style.color = color;
+    };
+
+    saveBtn.addEventListener('click', () => {
+        const config = {
+            url: urlInput.value.trim(),
+            notifyVod: !!notifyVod.checked,
+            notifyLive: !!notifyLive.checked
+        };
+        chrome.storage.local.set({ kvd_discord_webhook_config: config }, () => {
+            setStatus(t('popup.webhook.saved'), '#53fc18');
+            setTimeout(() => setStatus('', ''), 3000);
+        });
+    });
+
+    testBtn.addEventListener('click', () => {
+        const url = urlInput.value.trim();
+        if (!url) {
+            setStatus(t('popup.webhook.no_url'), '#ff5555');
+            return;
+        }
+        setStatus(t('popup.webhook.sending'), '#ccc');
+        chrome.runtime.sendMessage({ type: 'DISCORD_WEBHOOK_TEST', url }, (response) => {
+            if (chrome.runtime.lastError) {
+                setStatus(t('popup.webhook.failed', { error: chrome.runtime.lastError.message }), '#ff5555');
+                return;
+            }
+            if (response && response.ok) {
+                setStatus(t('popup.webhook.sent'), '#53fc18');
+            } else {
+                setStatus(t('popup.webhook.failed', { error: (response && response.error) || 'Unknown' }), '#ff5555');
+            }
+            setTimeout(() => setStatus('', ''), 4000);
+        });
+    });
 }
 
 function initHighlightUI() {

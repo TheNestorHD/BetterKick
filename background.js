@@ -320,6 +320,13 @@ const formatTime = (seconds) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+const formatBytes = (bytes) => {
+    if (!bytes || bytes <= 0) return '0 MB';
+    const mb = bytes / (1024 * 1024);
+    if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+    return `${mb.toFixed(1)} MB`;
+};
+
 const formatDuration = (ms) => {
     const s = Math.round(ms / 1000);
     const m = Math.floor(s / 60);
@@ -486,24 +493,43 @@ const downloadVodInBackground = async (payload, tabId, controller) => {
                 let ghostCount = 0;
                 let consecutiveErrors = 0;
                 const maxConsecutiveErrors = 5;
+                const ghostBatchSize = 5;
                 sendStage(t('download.checking_hidden_segments'), '', 0, 0, '');
+                // Same fix as content.js: probe segments in parallel batches with
+                // a Range request for 1 byte instead of one full sequential GET
+                // per segment, which was adding real latency (and bandwidth) to
+                // every VOD download before the progress bar even started moving.
+                outer:
                 while (ghostCount < maxGhostSegments && consecutiveErrors < maxConsecutiveErrors) {
                     ensureActive();
-                    currentNum++;
-                    const nextSegName = `${prefix}${currentNum}${suffix}${query}`;
-                    const nextSegUrl = `${baseUrlForSeg}${nextSegName}`;
-                    try {
-                        const checkRes = await fetch(nextSegUrl, { method: 'GET', signal });
-                        if (checkRes.ok) {
-                            segments.push(nextSegUrl);
+                    const batchNums = [];
+                    for (let i = 0; i < ghostBatchSize && (ghostCount + batchNums.length) < maxGhostSegments; i++) {
+                        batchNums.push(++currentNum);
+                    }
+                    if (batchNums.length === 0) break;
+
+                    const batchResults = await Promise.all(batchNums.map(async (num) => {
+                        const nextSegName = `${prefix}${num}${suffix}${query}`;
+                        const nextSegUrl = `${baseUrlForSeg}${nextSegName}`;
+                        try {
+                            const checkRes = await fetch(nextSegUrl, { method: 'GET', headers: { 'Range': 'bytes=0-0' }, signal });
+                            return { num, url: nextSegUrl, ok: checkRes.ok };
+                        } catch (e) {
+                            return { num, url: nextSegUrl, ok: false };
+                        }
+                    }));
+
+                    batchResults.sort((a, b) => a.num - b.num);
+                    for (const result of batchResults) {
+                        if (result.ok) {
+                            segments.push(result.url);
                             calculatedDuration += 10;
                             ghostCount++;
                             consecutiveErrors = 0;
                         } else {
                             consecutiveErrors++;
+                            if (consecutiveErrors >= maxConsecutiveErrors) break outer;
                         }
-                    } catch (e) {
-                        consecutiveErrors++;
                     }
                 }
                 if (ghostCount > 0) {
@@ -760,6 +786,14 @@ const downloadVodInBackground = async (payload, tabId, controller) => {
         }
     };
 
+    // Same fix as the Chrome/Edge content.js path: flushing the transmuxer
+    // after every single segment forces a separate MP4 fragment per .ts,
+    // and irregular segment durations (unstable streamer connection) make
+    // the per-fragment timestamp rounding drift audio vs video over the
+    // length of the VOD. Batch several pushes before each flush instead.
+    const TRANSMUX_FLUSH_BATCH_SIZE = 15;
+    let segmentsSinceFlush = 0;
+
     const tryProcess = () => {
         while (results.has(processingIndex)) {
             const segData = results.get(processingIndex);
@@ -767,7 +801,11 @@ const downloadVodInBackground = async (payload, tabId, controller) => {
             if (segData) {
                 const sourceBytes = new Uint8Array(segData);
                 transmuxer.push(sourceBytes);
-                transmuxer.flush();
+                segmentsSinceFlush++;
+                if (segmentsSinceFlush >= TRANSMUX_FLUSH_BATCH_SIZE) {
+                    transmuxer.flush();
+                    segmentsSinceFlush = 0;
+                }
             }
             processingIndex++;
         }
@@ -914,6 +952,11 @@ const downloadVodInBackground = async (payload, tabId, controller) => {
 
     sendStage(t('download.finalizing_write'), t('download.please_wait'), totalBytes, 0, '');
 
+    if (segmentsSinceFlush > 0) {
+        transmuxer.flush();
+        segmentsSinceFlush = 0;
+    }
+
     flushWriteBuffer();
 
     sendStage(t('download.assembling'), t('download.may_take_minute'), totalBytes, 0, '');
@@ -944,6 +987,7 @@ const downloadVodInBackground = async (payload, tabId, controller) => {
     if (state) {
         state.downloadId = downloadId;
     }
+    return { durationMs: (calculatedDuration > 0 ? calculatedDuration * 1000 : videoDurationMs), totalBytes };
     } catch (error) {
         if (opfsWritable) {
             try {
@@ -973,7 +1017,136 @@ chrome.downloads.onChanged.addListener((delta) => {
     }
 });
 
+const sendDiscordWebhook = async (url, embed) => {
+    if (!url || typeof url !== 'string') {
+        return { ok: false, error: 'No webhook URL configured' };
+    }
+    try {
+        const parsed = new URL(url);
+        const allowedHosts = ['discord.com', 'discordapp.com', 'canary.discord.com', 'ptb.discord.com'];
+        if (!allowedHosts.includes(parsed.hostname)) {
+            return { ok: false, error: 'URL must be a discord.com webhook' };
+        }
+    } catch (e) {
+        return { ok: false, error: 'Invalid URL' };
+    }
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ embeds: [embed] })
+        });
+        if (!res.ok && res.status !== 204) {
+            let detail = '';
+            try {
+                detail = (await res.text()).slice(0, 300);
+            } catch (e) {}
+            console.warn('[BetterKick] Discord webhook rejected:', res.status, detail);
+            return { ok: false, error: `HTTP ${res.status}${detail ? ' — ' + detail : ''}` };
+        }
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: e && e.message ? e.message : 'Network error' };
+    }
+};
+
+const getWebhookConfig = () => new Promise((resolve) => {
+    chrome.storage.local.get(['kvd_discord_webhook_config'], (result) => {
+        resolve(result.kvd_discord_webhook_config || { url: '', notifyVod: false, notifyLive: false });
+    });
+});
+
+const buildWebhookEmbed = (event, data) => {
+    const brandColor = 0x53fc18;
+    const cancelledColor = 0xffaa00;
+    if (event === 'vod_complete') {
+        return {
+            title: t('webhook.vod_complete.title'),
+            url: data.url || undefined,
+            color: brandColor,
+            fields: [
+                { name: t('webhook.field.channel'), value: data.channel || t('webhook.value.unknown'), inline: true },
+                { name: t('webhook.field.title'), value: data.title || t('webhook.value.unknown'), inline: true },
+                { name: t('webhook.field.duration'), value: data.duration || t('webhook.value.unknown'), inline: true },
+                { name: t('webhook.field.size'), value: data.size || t('webhook.value.unknown'), inline: true }
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: 'BetterKick' }
+        };
+    }
+    if (event === 'live_start') {
+        return {
+            title: t('webhook.live_start.title'),
+            url: data.url || undefined,
+            color: brandColor,
+            fields: [
+                { name: t('webhook.field.channel'), value: data.channel || t('webhook.value.unknown'), inline: true }
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: 'BetterKick' }
+        };
+    }
+    if (event === 'live_end') {
+        return {
+            title: t('webhook.live_end.title'),
+            url: data.url || undefined,
+            color: brandColor,
+            fields: [
+                { name: t('webhook.field.channel'), value: data.channel || t('webhook.value.unknown'), inline: true },
+                { name: t('webhook.field.duration'), value: data.duration || t('webhook.value.unknown'), inline: true }
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: 'BetterKick' }
+        };
+    }
+    if (event === 'live_cancelled') {
+        return {
+            title: t('webhook.live_cancelled.title'),
+            url: data.url || undefined,
+            color: cancelledColor,
+            fields: [
+                { name: t('webhook.field.channel'), value: data.channel || t('webhook.value.unknown'), inline: true },
+                { name: t('webhook.field.duration'), value: data.duration || t('webhook.value.unknown'), inline: true }
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: 'BetterKick' }
+        };
+    }
+    return { title: t('webhook.generic.title'), color: brandColor, description: JSON.stringify(data).slice(0, 500) };
+};
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+
+    if (message.type === 'DISCORD_WEBHOOK_TEST') {
+        (async () => {
+            await I18N.ensure();
+            const embed = {
+                title: t('webhook.test.title'),
+                description: t('webhook.test.description'),
+                color: 0x53fc18,
+                timestamp: new Date().toISOString(),
+                footer: { text: 'BetterKick' }
+            };
+            const result = await sendDiscordWebhook(message.url, embed);
+            sendResponse(result);
+        })();
+        return true;
+    }
+
+    if (message.type === 'DISCORD_WEBHOOK_NOTIFY') {
+        (async () => {
+            const config = await getWebhookConfig();
+            if (!config.url) return;
+            if (message.event === 'vod_complete' && !config.notifyVod) return;
+            if ((message.event === 'live_start' || message.event === 'live_end' || message.event === 'live_cancelled') && !config.notifyLive) return;
+            await I18N.ensure();
+            const embed = buildWebhookEmbed(message.event, message.data || {});
+            await sendDiscordWebhook(config.url, embed);
+        })();
+        return false;
+    }
+
     if (message.type === 'UPDATE_PROGRESS') {
         setBadgeProgress(message.progress);
         return;
@@ -1000,8 +1173,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         const controller = new AbortController();
         activeDownloads.set(tabId, { controller, downloadId: null });
-        downloadVodInBackground(message.payload, tabId, controller).then(() => {
+        downloadVodInBackground(message.payload, tabId, controller).then((result) => {
             sendToTab(tabId, { type: 'VOD_DONE' });
+            const p = message.payload || {};
+            chrome.runtime.sendMessage({
+                type: 'DISCORD_WEBHOOK_NOTIFY',
+                event: 'vod_complete',
+                data: {
+                    channel: p.channel || '',
+                    title: p.explicitTitle || '',
+                    duration: result ? formatTime(Math.round(result.durationMs / 1000)) : '',
+                    size: result ? formatBytes(result.totalBytes) : '',
+                    url: p.channel && p.explicitVideoId ? `https://kick.com/${p.channel}/videos/${p.explicitVideoId}` : ''
+                }
+            }).catch(() => {});
         }).catch((error) => {
             if (error && (error.name === 'AbortError' || (error.message && error.message.includes('cancelled by user')))) {
                 sendToTab(tabId, { type: 'VOD_CANCELLED' });
