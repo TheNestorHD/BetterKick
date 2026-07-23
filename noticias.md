@@ -1,5 +1,5 @@
 # ¡Nuevo servidor de Discord!
-Entérate de todas las novedades de la extensión, pide nuevas funciones y conoce a otros streamers/fans entrando a nuestro servidor: https://github.com/user-attachments/assets/a573d460-2a67-48c3-be0b-8d0d96d38426
+Entérate de todas las novedades de la extensión, pide nuevas funciones y conoce a otros streamers/fans entrando a nuestro servidor.
 
 # 25 Oct - Bienvenidos a BetterKick
 Esta es la primera versión del sistema de noticias.
