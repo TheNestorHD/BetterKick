@@ -767,6 +767,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
+// --- Passive master.m3u8 capture ---
+// Kick's own player (Mux/HLS.js) requests the real master.m3u8 straight from
+// the CDN (stream.kick.com/.../media/hls/master.m3u8) with no auth token at
+// all. The browser's Resource Timing API records that request regardless of
+// who made it, so we listen there instead of depending on Kick's private,
+// per-user-authenticated metadata API (which now requires a Bearer token we
+// can't and shouldn't hardcode).
+let lastKnownMasterUrl = null;
+
+function rememberIfMasterUrl(url) {
+    if (typeof url === 'string' && /\.m3u8/i.test(url)) {
+        // Always prefer 'master.m3u8', but keep any .m3u8 as a fallback
+        if (/master\.m3u8/i.test(url)) {
+            lastKnownMasterUrl = url;
+        } else if (!lastKnownMasterUrl) {
+            lastKnownMasterUrl = url;
+        }
+    }
+}
+
+(function initMasterUrlSniffer() {
+    try {
+        // Pick up anything already loaded before this script ran.
+        performance.getEntriesByType('resource').forEach(entry => rememberIfMasterUrl(entry.name));
+        const observer = new PerformanceObserver(list => {
+            list.getEntries().forEach(entry => rememberIfMasterUrl(entry.name));
+        });
+        // `buffered: true` also replays entries recorded before observe() was called.
+        observer.observe({ type: 'resource', buffered: true });
+    } catch (e) {
+        console.warn('[BetterKick] master.m3u8 sniffer unavailable:', e);
+    }
+})();
+
 // Function to extract video ID from URL
 function getVideoId() {
     // 1. Try to find UUID explicitly (most robust)
@@ -779,21 +813,386 @@ function getVideoId() {
     return videoMatch ? videoMatch[1] : null;
 }
 
-// Function to fetch video data
-async function fetchVideoData(videoId, options = {}) {
+// Helper to deeply search for any .m3u8 URL in an object (API fallback)
+function findM3u8InObject(obj) {
+    if (typeof obj === 'string') {
+        if (obj.includes('.m3u8')) return obj;
+        return null;
+    }
+    if (Array.isArray(obj)) {
+        for (const item of obj) {
+            const found = findM3u8InObject(item);
+            if (found) return found;
+        }
+    } else if (obj !== null && typeof obj === 'object') {
+        for (const key of Object.keys(obj)) {
+            const found = findM3u8InObject(obj[key]);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+// NEW: Helper to search page scripts for .m3u8 URLs (Robust fallback)
+function findM3u8InPage() {
     try {
-        const response = await fetch(`https://kick.com/api/v1/video/${videoId}`, {
+        const scripts = document.querySelectorAll('script');
+        for (const script of scripts) {
+            if (script.textContent) {
+                const match = script.textContent.match(/https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/i);
+                if (match) {
+                    return match[0].replace(/['",;\\]+$/, '');
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to search scripts for .m3u8', e);
+    }
+    return null;
+}
+
+// NEW: Diagnostic Log Exporter (Fallback when everything fails)
+async function exportDiagnosticLog(errorMsg = 'Unknown error', context = 'general') {
+    try {
+        const logData = {
+            timestamp: new Date().toISOString(),
+            context: context,
+            url: window.location.href,
+            title: document.title,
+            error: errorMsg,
+            nextData: null,
+            scriptsM3u8: [],
+            performanceResources: [],
+            lastKnownMasterUrl: lastKnownMasterUrl || 'None',
+            sniffedMasterUrlFromBackground: null,
+            playbackEndpointRaw: null
+        };
+
+        // 0. What did background.js's webRequest sniffer capture (if anything)?
+        try {
+            logData.sniffedMasterUrlFromBackground = await getSniffedMasterUrl();
+        } catch (e) {
+            logData.sniffedMasterUrlFromBackground = 'Error: ' + e.message;
+        }
+
+        // 0.5. Raw response from the new playback endpoint, so we can see exactly
+        // what Kick is returning instead of guessing which field holds the URL.
+        try {
+            const videoId = typeof getVideoId === 'function' ? getVideoId() : null;
+            if (videoId) {
+                const resp = await fetch(`https://web.kick.com/api/v1/stream/${videoId}/playback`, { credentials: 'include' });
+                const bodyText = await resp.text();
+                logData.playbackEndpointRaw = {
+                    url: `https://web.kick.com/api/v1/stream/${videoId}/playback`,
+                    status: resp.status,
+                    ok: resp.ok,
+                    body: bodyText.slice(0, 3000)
+                };
+            } else {
+                logData.playbackEndpointRaw = 'Could not resolve videoId from URL';
+            }
+        } catch (e) {
+            logData.playbackEndpointRaw = 'Error: ' + e.message;
+        }
+
+        // 1. Next Data
+        try {
+            const nextDataEl = document.getElementById('__NEXT_DATA__');
+            if (nextDataEl) {
+                logData.nextData = JSON.parse(nextDataEl.textContent);
+            }
+        } catch (e) {
+            logData.nextData = "Error parsing __NEXT_DATA__: " + e.message;
+        }
+
+        // 2. Scripts with m3u8 or cloudfront
+        const scripts = document.querySelectorAll('script');
+        for (const script of scripts) {
+            if (script.textContent && (script.textContent.includes('.m3u8') || script.textContent.includes('cloudfront'))) {
+                const matches = script.textContent.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/gi) || [];
+                const cfMatches = script.textContent.match(/https?:\/\/[^\s"']+cloudfront[^\s"']*/gi) || [];
+                if (matches.length > 0 || cfMatches.length > 0) {
+                    logData.scriptsM3u8.push({
+                        src: script.src || 'inline',
+                        m3u8: matches.slice(0, 5), // Limit to avoid huge files
+                        cloudfront: cfMatches.slice(0, 5)
+                    });
+                }
+            }
+        }
+
+        // 3. Performance resources (last 50 video/network resources)
+        const resources = performance.getEntriesByType('resource').filter(r => 
+            r.name.includes('.m3u8') || r.name.includes('cloudfront') || r.name.includes('kick.com/api')
+        ).slice(-50).map(r => ({
+            name: r.name,
+            type: r.initiatorType,
+            duration: r.duration
+        }));
+        logData.performanceResources = resources;
+
+        // 4. Create blob and download
+        const logText = JSON.stringify(logData, null, 2);
+
+        // Save to localStorage as a backup in case download/send fails
+        try {
+            localStorage.setItem('kvd_last_diagnostic_log', logText);
+            console.log('[BetterKick] Diagnostic log also saved to localStorage (key: kvd_last_diagnostic_log)');
+        } catch (e) {
+            console.warn('[BetterKick] Could not save to localStorage:', e);
+        }
+
+        const downloadLocally = () => {
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const objUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objUrl;
+            a.download = `BetterKick_Diagnostico_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(objUrl);
+            console.log('[BetterKick] Diagnostic log downloaded to your Downloads folder.');
+        };
+
+        // Ask for explicit, per-failure consent before sending anything over the
+        // network. Nothing is sent unless the user accepts here. The Discord
+        // message itself only ever contains the extension version as text, plus
+        // this .txt as an attachment — no other data is added to the message.
+        let wantsToSend = false;
+        try {
+            wantsToSend = confirm(t('diagnostic.send_confirm'));
+        } catch (e) {
+            wantsToSend = false;
+        }
+
+        if (!wantsToSend) {
+            downloadLocally();
+            return true;
+        }
+
+        try {
+            const result = await chrome.runtime.sendMessage({ type: 'SEND_DIAGNOSTIC_REPORT', logText });
+            if (result && result.ok) {
+                console.log('[BetterKick] Diagnostic report sent to developers.');
+            } else {
+                console.warn('[BetterKick] Failed to send diagnostic report, downloading locally instead:', result && result.error);
+                downloadLocally();
+            }
+        } catch (e) {
+            console.warn('[BetterKick] Failed to send diagnostic report, downloading locally instead:', e);
+            downloadLocally();
+        }
+
+        return true;
+    } catch (e) {
+        console.error('[BetterKick] Failed to export diagnostic log:', e);
+        return false;
+    }
+}
+
+// Helper to extract m3u8 from Next.js initial page data
+function getNextDataM3u8() {
+    try {
+        const nextData = document.getElementById('__NEXT_DATA__');
+        if (nextData && nextData.textContent) {
+            const data = JSON.parse(nextData.textContent);
+            return findM3u8InObject(data);
+        }
+    } catch (e) {
+        console.warn('Failed to parse __NEXT_DATA__', e);
+    }
+    return null;
+}
+
+// Function to normalize a raw video entry from the channel videos list
+// into the shape the rest of the extension expects (data.source, data.duration, etc.)
+function normalizeVideoEntry(entry) {
+    if (!entry) return null;
+    const live = entry.livestream || entry.live_stream || {};
+    let source = entry.source || live.source || entry.video?.source || entry.playback_url || live.playback_url;
+    
+    if (!source) {
+        // Fallback: deeply search for any .m3u8 URL in the entry if standard paths fail
+        source = findM3u8InObject(entry);
+    }
+    
+    if (!source) return null;
+    return {
+        ...entry,
+        source,
+        duration: entry.duration ?? live.duration,
+        title: entry.title || entry.session_title || live.session_title,
+        session_title: entry.session_title || live.session_title,
+        stream_title: entry.stream_title || live.session_title
+    };
+}
+
+// Ask background.js for the master.m3u8 it captured via chrome.webRequest.
+// This sees ALL network traffic of the tab (including requests made from Web
+// Workers, which is where Kick's player now seems to fetch the signed
+// CloudFront/IVS playlist from), unlike the passive Performance API sniffer
+// above, which only sees main-thread/document resources.
+function getSniffedMasterUrl() {
+    return new Promise((resolve) => {
+        try {
+            chrome.runtime.sendMessage({ type: 'GET_SNIFFED_MASTER_URL' }, (response) => {
+                if (chrome.runtime.lastError) { resolve(null); return; }
+                resolve(response && response.url ? response.url : null);
+            });
+        } catch (e) {
+            resolve(null);
+        }
+    });
+}
+
+// Function to fetch video data
+// NOTE: Kick retired GET /api/v1/video/{id} (now 404). We now prioritize the new
+// /api/v1/stream/{id}/playback endpoint, and aggressively filter out live-video.net
+// URLs when we are on a VOD page to prevent the extension from trying to download a live stream.
+async function fetchVideoData(videoId, options = {}) {
+    // -1. HIGHEST PRIORITY: master.m3u8 captured at the network level by background.js
+    // (via chrome.webRequest). This is the literal, exact URL Kick's own player used —
+    // including the signed aws.sessionId token — so it's more trustworthy than anything
+    // reconstructed from an API response or page script.
+    try {
+        const sniffed = await getSniffedMasterUrl();
+        if (sniffed && !sniffed.includes('live-video.net')) {
+            console.log('Using master.m3u8 sniffed via webRequest (background.js):', sniffed);
+            return {
+                source: sniffed,
+                title: document.title
+            };
+        }
+    } catch (error) {
+        console.warn('webRequest-sniffed master URL lookup failed:', error);
+    }
+
+    // 0. NEW: Try the new VOD playback endpoint first!
+    try {
+        const playbackResponse = await fetch(`https://web.kick.com/api/v1/stream/${videoId}/playback`, {
             credentials: 'include',
             signal: options.signal
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        console.log('API Video Data:', data); // Log full API response for debugging
-        return data;
+        if (playbackResponse.ok) {
+            const playbackData = await playbackResponse.json();
+            console.log('API Video Data (new playback endpoint):', playbackData);
+            const source = playbackData.source || playbackData.playback_url || playbackData.url || findM3u8InObject(playbackData);
+            if (source && source.includes('.m3u8')) {
+                // Filter out live streams if we are on a VOD page
+                if (!source.includes('live-video.net') || source.includes('vod') || source.includes('cloudfront')) {
+                    return {
+                        source: source,
+                        duration: playbackData.duration,
+                        title: playbackData.title || document.title
+                    };
+                }
+            }
+        }
     } catch (error) {
-        console.error('Error fetching video data:', error);
-        return { error: error.message };
+        console.warn('New playback endpoint failed:', error);
     }
+
+    // 1. Proactive fallback: Check __NEXT_DATA__ first, but IGNORE live streams
+    const nextDataSource = getNextDataM3u8();
+    if (nextDataSource && !nextDataSource.includes('live-video.net')) {
+        console.log('Found source in __NEXT_DATA__:', nextDataSource);
+        return {
+            source: nextDataSource,
+            title: document.title
+        };
+    }
+
+    // 1.5. Deep script search for .m3u8, but IGNORE live-video.net on VOD pages
+    const htmlSource = findM3u8InPage();
+    if (htmlSource && !htmlSource.includes('live-video.net')) {
+        console.log('Found source in page scripts:', htmlSource);
+        return {
+            source: htmlSource,
+            title: document.title
+        };
+    }
+
+    // 2. Try the legacy endpoint first in case it still works for some accounts/regions.
+    try {
+        const legacyResponse = await fetch(`https://kick.com/api/v1/video/${videoId}`, {
+            credentials: 'include',
+            signal: options.signal
+        });
+        if (legacyResponse.ok) {
+            const data = await legacyResponse.json();
+            if (data.source && !data.source.includes('live-video.net')) {
+                console.log('API Video Data (legacy endpoint):', data);
+                return data;
+            }
+        }
+    } catch (error) {
+        if (error.name === 'AbortError') throw error;
+        console.warn('Legacy video endpoint failed, falling back to channel videos list:', error);
+    }
+
+    // 3. Try channel videos list
+    try {
+        const slug = getChannelSlug();
+        if (!slug) throw new Error('Could not resolve channel slug for video lookup');
+
+        const channelResponse = await fetch(`https://kick.com/api/v1/channels/${slug}`, {
+            credentials: 'include',
+            signal: options.signal
+        });
+        if (!channelResponse.ok) throw new Error(`HTTP ${channelResponse.status} resolving channel`);
+        const channelData = await channelResponse.json();
+        const channelId = channelData.id;
+        if (!channelId) throw new Error('Channel response did not include an id');
+
+        // NOTE (2026-07): Kick moved this endpoint from kick.com to the
+        // web.kick.com subdomain (confirmed via captured page traffic). Try
+        // web.kick.com first and fall back to the old apex domain in case
+        // it still works for some accounts/regions.
+        let videosResponse = await fetch(`https://web.kick.com/api/v1/channels/${channelId}/videos`, {
+            credentials: 'include',
+            signal: options.signal
+        });
+        if (!videosResponse.ok) {
+            videosResponse = await fetch(`https://kick.com/api/v1/channels/${channelId}/videos`, {
+                credentials: 'include',
+                signal: options.signal
+            });
+        }
+        if (!videosResponse.ok) throw new Error(`HTTP ${videosResponse.status} fetching channel videos`);
+        const videosData = await videosResponse.json();
+        const videoList = Array.isArray(videosData) ? videosData : (videosData.data || videosData.videos || []);
+
+        const match = videoList.find(v =>
+            v.uuid === videoId ||
+            v.id === videoId ||
+            v.video?.uuid === videoId ||
+            String(v.id) === String(videoId)
+        );
+        
+        if (match) {
+            const normalized = normalizeVideoEntry(match);
+            if (normalized && normalized.source && !normalized.source.includes('live-video.net')) {
+                console.log('API Video Data (channel videos endpoint):', normalized);
+                return normalized;
+            }
+        }
+    } catch (error) {
+        console.warn('Channel videos lookup failed:', error);
+    }
+
+    // 4. Final fallback: network-captured master.m3u8 (ONLY if it's not a live stream URL)
+    if (lastKnownMasterUrl && !lastKnownMasterUrl.includes('live-video.net')) {
+        console.log('Using master.m3u8 captured from network activity:', lastKnownMasterUrl);
+        return {
+            source: lastKnownMasterUrl,
+            title: document.title
+        };
+    }
+
+    console.error('Error fetching video data: All methods failed.');
+    exportDiagnosticLog('All fetchVideoData methods failed (404s or only live source found)');
+    return { error: 'No se pudo obtener la fuente del video. Se ha descargado automáticamente un archivo "BetterKick_Diagnostico_...txt" en tu carpeta de Descargas. Por favor, copia el contenido de ese archivo y pégalo en el chat para que pueda arreglarlo.' };
 }
 
 // Helper to update button state
@@ -2471,6 +2870,11 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
                 url: window.location.href
             }
         }).catch(() => {});
+        // Desbloquear logros (Chrome/Edge - descarga directa en content.js)
+        chrome.runtime.sendMessage({ type: 'UNLOCK_ACHIEVEMENT', achievementId: 'first_download' }).catch(() => {});
+        if (videoDurationMs > 4 * 3600 * 1000) {
+            chrome.runtime.sendMessage({ type: 'UNLOCK_ACHIEVEMENT', achievementId: 'marathon' }).catch(() => {});
+        }
         updateButton(btn, t('download.button.complete'), false);
         isDownloading = false;
         allowTabInactivity();
@@ -2496,6 +2900,9 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
 
     } catch (error) {
         console.error('Download failed:', error);
+        
+        // Trigger diagnostic log when segment download fails
+        await exportDiagnosticLog(`Segment download failed: ${error.message || error}`, 'segment_download_failure');
 
         if (error && (error.name === 'AbortError' || (error.message && error.message.includes('cancelled by user')))) {
             updateButton(btn, t('download.button.cancelled'), false);
@@ -2515,7 +2922,7 @@ async function downloadSegments(streamUrl, btn, videoDurationMs, startSeconds = 
         restorePageAudio();
 
         sendNotification(t('download.failed_title'), t('download.failed_message', { error: error.message || t('download.unknown_error') }));
-        alert(t('download.failed', { error: error.message || t('download.unknown_error') }));
+        alert(t('download.failed', { error: error.message || t('download.unknown_error') }) + '\n\n⚠️ Se ha guardado un registro de diagnóstico.\nSi no se descargó el archivo, abre la consola (F12) y escribe:\nlocalStorage.getItem("kvd_last_diagnostic_log")\nLuego copia el resultado y pégalo en el chat.');
         updateButton(btn, t('download.button.error'), false);
         isDownloading = false;
         allowTabInactivity();
@@ -2591,8 +2998,47 @@ function createDownloadOptionsModal(videoId, durationMs, btn) {
                 qualitySelect.innerHTML = '';
                 const noSourceOption = document.createElement('option');
                 noSourceOption.value = '';
-                setI18nText(noSourceOption, 'download.quality.no_source');
+                noSourceOption.textContent = '⚠️ Sin fuente. Revisa tu carpeta de Descargas (se generó un archivo de diagnóstico).';
                 qualitySelect.appendChild(noSourceOption);
+                
+                // NEW: Manual URL Input Fallback
+                const manualContainer = document.createElement('div');
+                manualContainer.style.cssText = 'margin-top: 15px; padding: 10px; background: rgba(255, 170, 0, 0.1); border: 1px solid #ffaa00; border-radius: 4px; width: 100%; box-sizing: border-box;';
+                
+                const manualLabel = document.createElement('div');
+                manualLabel.textContent = '¿Ves la URL en tu monitor de red? Pégala aquí:';
+                manualLabel.style.cssText = 'color: #ffaa00; font-size: 12px; margin-bottom: 5px; font-weight: bold;';
+                manualContainer.appendChild(manualLabel);
+                
+                const manualInput = document.createElement('input');
+                manualInput.type = 'text';
+                manualInput.placeholder = 'https://...master.m3u8...';
+                manualInput.style.cssText = 'width: 100%; background: #111; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; box-sizing: border-box;';
+                manualContainer.appendChild(manualInput);
+                
+                const manualBtn = document.createElement('button');
+                manualBtn.textContent = 'Usar esta URL';
+                manualBtn.className = 'kvd-option-btn primary';
+                manualBtn.style.cssText = 'width: 100%; font-size: 12px; padding: 8px;';
+                manualBtn.onclick = () => {
+                    const url = manualInput.value.trim();
+                    if (url && url.includes('.m3u8')) {
+                        selectedVariantUrl = url;
+                        qualitySelect.innerHTML = '';
+                        const successOption = document.createElement('option');
+                        successOption.value = url;
+                        successOption.textContent = 'URL Manual (Correcta)';
+                        successOption.selected = true;
+                        qualitySelect.appendChild(successOption);
+                        manualContainer.remove();
+                        mainOptions.style.display = 'flex';
+                    } else {
+                        alert('Por favor, pega una URL válida que contenga .m3u8');
+                    }
+                };
+                manualContainer.appendChild(manualBtn);
+                content.appendChild(manualContainer);
+                
                 return;
             }
             masterPlaylistUrl = data.source;
@@ -2948,7 +3394,7 @@ function createDownloadOptionsModal(videoId, durationMs, btn) {
     // Show Trim UI
     trimOptionBtn.onclick = () => {
         mainOptions.style.display = 'none';
-        trimUI.style.display = 'block';
+        trimUI.style.display = 'flex'; // FIXED: Changed to 'flex' to maintain proper column alignment
         closeModalBtn.style.display = 'none'; // Hide main cancel, use back/cancel in trim UI
     };
 
@@ -3183,10 +3629,17 @@ async function getLiveStreamSource() {
         if (sourceEl && sourceEl.src && sourceEl.src.includes('.m3u8')) return sourceEl.src;
     }
     const slug = getChannelSlug();
-    if (!slug) return null;
+    if (!slug) {
+        // Fallback: use the master.m3u8 captured by the network sniffer
+        if (lastKnownMasterUrl) {
+            console.log('[SR Stream] Using captured master.m3u8 (no slug):', lastKnownMasterUrl);
+            return lastKnownMasterUrl;
+        }
+        return null;
+    }
     try {
         const response = await fetch(`https://kick.com/api/v1/channels/${slug}`, { credentials: 'include' });
-        if (!response.ok) return null;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         const live = data.livestream || data.live_stream || data.stream || {};
         const candidates = [
@@ -3203,6 +3656,11 @@ async function getLiveStreamSource() {
         }
     } catch (e) {
         console.error('[SR Stream] live source error', e);
+    }
+    // Fallback: use the master.m3u8 captured by the network sniffer
+    if (lastKnownMasterUrl) {
+        console.log('[SR Stream] Using captured master.m3u8 (API failed):', lastKnownMasterUrl);
+        return lastKnownMasterUrl;
     }
     return null;
 }
@@ -3443,21 +3901,20 @@ async function startStreamDownload(btn) {
     };
 
     const pollDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    let playlistUrl = await getLiveStreamSource();
-    if (!playlistUrl) {
-        streamDownloadState.cancelAction = 'discard';
-        throw new Error('no source');
-    }
-    playlistUrl = await selectBestVariantUrl(playlistUrl, controller.signal);
-    streamDownloadState.lastPlaylistUrl = playlistUrl;
-    if (firefoxMode) {
-        try {
-            chrome.runtime.sendMessage({ type: 'SR_STREAM_INIT', filename: suggested }).catch(() => {});
-        } catch (_) {}
-    }
-
     let hadError = false;
     try {
+        let playlistUrl = await getLiveStreamSource();
+        if (!playlistUrl) {
+            streamDownloadState.cancelAction = 'discard';
+            throw new Error('no source');
+        }
+        playlistUrl = await selectBestVariantUrl(playlistUrl, controller.signal);
+        streamDownloadState.lastPlaylistUrl = playlistUrl;
+        if (firefoxMode) {
+            try {
+                chrome.runtime.sendMessage({ type: 'SR_STREAM_INIT', filename: suggested }).catch(() => {});
+            } catch (_) {}
+        }
         while (!controller.signal.aborted) {
             let playlistText = '';
             try {
@@ -3573,6 +4030,8 @@ async function startStreamDownload(btn) {
         } else {
             if (cancelAction === 'keep') {
                 setStreamButtonState(btn, 'completed');
+                // Desbloquear logro de primera grabación en vivo (Chrome/Edge)
+                chrome.runtime.sendMessage({ type: 'UNLOCK_ACHIEVEMENT', achievementId: 'first_sr' }).catch(() => {});
             }
             if (cancelAction === 'discard') {
                 streamDownloadState.downloadedBytes = 0;
@@ -3613,6 +4072,8 @@ async function startStreamDownload(btn) {
     }
     if (!controller.signal.aborted && !hadError && !firefoxMode) {
         setStreamButtonState(btn, 'completed');
+        // Desbloquear logro de primera grabación en vivo (Chrome/Edge - terminación natural)
+        chrome.runtime.sendMessage({ type: 'UNLOCK_ACHIEVEMENT', achievementId: 'first_sr' }).catch(() => {});
         setTimeout(() => {
             if (!isStreamDownloading) setStreamButtonState(btn, 'idle');
         }, 4000);
@@ -4628,7 +5089,7 @@ function checkAutoDownloadTrigger() {
         // its page layout and none of injectButton()'s selectors match).
         let deadline = parseInt(sessionStorage.getItem('kvd_auto_download_deadline'), 10);
         if (!deadline) {
-            deadline = Date.now() + 20000;
+            deadline = Date.now() + 35000;
             sessionStorage.setItem('kvd_auto_download_deadline', String(deadline));
         }
 
@@ -4641,6 +5102,30 @@ function checkAutoDownloadTrigger() {
 
         const btn = document.querySelector('.kick-vod-download-btn');
         if (btn && !btn.disabled) {
+            // Wait for the VOD to actually start playing before triggering the
+            // download. This matters because master.m3u8 detection now relies
+            // partly on sniffing the real network request the player makes
+            // (see getSniffedMasterUrl()) — that request doesn't happen until
+            // playback actually starts, so clicking the button the moment it
+            // appears can fire before there's anything to sniff yet.
+            const videoEl = document.querySelector('video');
+            const isPlaying = !!videoEl && videoEl.readyState >= 2 && videoEl.currentTime > 0 && !videoEl.paused && !videoEl.ended;
+
+            if (!isPlaying) {
+                // Nudge autoplay in case the page is waiting on a user gesture
+                // or hasn't started loading the player yet.
+                if (videoEl && videoEl.paused) {
+                    videoEl.play().catch(() => {});
+                }
+                autoDownloadStableBtn = null;
+                autoDownloadStableSince = 0;
+                if (Date.now() > deadline) {
+                    console.warn('BetterKick: Auto-download timed out waiting for VOD playback to start; triggering anyway.');
+                } else {
+                    return;
+                }
+            }
+
             // Kick keeps re-rendering/hydrating the page for a bit after
             // our button first shows up; clicking immediately can land on
             // a button instance that's about to get replaced/reset by that
@@ -4807,6 +5292,11 @@ setInterval(() => {
     // Inject thumbnail buttons periodically (Every 5 seconds - Low Priority)
     if (globalCheckCycle % 5 === 0) {
         injectThumbnailButtons();
+    }
+
+    // Inject Audio Amplifier (Every 5 seconds - Low Priority)
+    if (globalCheckCycle % 5 === 0) {
+        injectAudioAmplifier();
     }
 
     // Inject Easter Eggs listener (Every 5 seconds - Low Priority)

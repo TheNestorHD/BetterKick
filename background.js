@@ -6,7 +6,74 @@ console.log('BetterKick: Background service worker loaded.');
 
 const activeDownloads = new Map();
 const downloadUrls = new Map();
+
+// --- Captura de red del master.m3u8 real (fix API Kick 2026) ---
+// Kick ahora sirve los VOD con URLs firmadas de CloudFront/AWS IVS
+// (?aws.sessionId=...) que solo existen en la petición real que hace el
+// reproductor, y todo indica que esa petición ahora se hace desde un Web
+// Worker (típico de HLS.js/Mux). Los requests hechos dentro de un Worker NO
+// aparecen en performance.getEntriesByType() del documento principal, que es
+// lo que usa el sniffer pasivo de content.js — por eso la detección
+// automática fallaba aunque pegar la URL a mano sí funcionaba.
+// chrome.webRequest, en cambio, ve TODO el tráfico de la pestaña (workers,
+// iframes, fetch, XHR) sin depender del hilo principal, así que es mucho más
+// fiable para esto.
+const sniffedMasterUrls = new Map(); // tabId -> { url, timestamp }
+
+if (chrome.webRequest && chrome.webRequest.onBeforeRequest) {
+    chrome.webRequest.onBeforeRequest.addListener(
+        (details) => {
+            if (details.tabId == null || details.tabId < 0) return;
+            if (/master\.m3u8/i.test(details.url) && !/live-video\.net/i.test(details.url)) {
+                sniffedMasterUrls.set(details.tabId, { url: details.url, timestamp: Date.now() });
+                console.log('[BetterKick] master.m3u8 capturado vía webRequest:', details.url);
+            }
+        },
+        { urls: [
+            'https://*.cloudfront.net/*master.m3u8*',
+            'https://*.kick.com/*master.m3u8*',
+            'https://*.kick.com/*.m3u8*'
+        ] }
+    );
+}
+
+// Limpiar la URL capturada cuando la pestaña navega (para no reusar por
+// error el master.m3u8 de un VOD anterior en el mismo tab).
+if (chrome.tabs && chrome.tabs.onUpdated) {
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+        if (changeInfo.status === 'loading' && changeInfo.url) {
+            sniffedMasterUrls.delete(tabId);
+        }
+    });
+}
+// srStreams ahora solo guarda metadatos y el handle de OPFS, NO los chunks en memoria
 const srStreams = new Map();
+
+// --- SISTEMA DE LOGROS ---
+const ACHIEVEMENTS = {
+    first_download: { id: 'first_download', title: 'Primer Paso', description: 'Descargaste tu primer VOD con BetterKick.', icon: '🎬' },
+    first_sr: { id: 'first_sr', title: 'En Vivo', description: 'Grabaste tu primer stream en vivo.', icon: '🔴' },
+    marathon: { id: 'marathon', title: 'Maratonista', description: 'Descargaste un VOD de más de 4 horas.', icon: '⏱️' },
+    moderator: { id: 'moderator', title: 'Moderador', description: 'Añadiste tu primer comando a la biblioteca.', icon: '🛡️' },
+    webhook_master: { id: 'webhook_master', title: 'Conectado', description: 'Configuraste tu primer Webhook de Discord.', icon: '🔗' }
+};
+
+async function unlockAchievement(achievementId, metadata = {}) {
+    const data = await chrome.storage.local.get(['achievements']);
+    const achievements = data.achievements || {};
+    
+    if (achievements[achievementId]) return; // Ya desbloqueado
+    
+    const achievement = ACHIEVEMENTS[achievementId];
+    if (!achievement) return;
+    
+    achievements[achievementId] = { unlockedAt: Date.now(), ...metadata };
+    await chrome.storage.local.set({ achievements });
+    
+    // Notificar al popup si está abierto
+    chrome.runtime.sendMessage({ type: 'ACHIEVEMENT_UNLOCKED', achievement }).catch(() => {});
+}
+
 const I18N = (() => {
     const supported = ['en', 'es', 'pt', 'fr', 'de', 'it', 'zh', 'ja', 'ru', 'ar', 'hi', 'ko', 'tr'];
     const defaultLang = 'en';
@@ -495,10 +562,6 @@ const downloadVodInBackground = async (payload, tabId, controller) => {
                 const maxConsecutiveErrors = 5;
                 const ghostBatchSize = 5;
                 sendStage(t('download.checking_hidden_segments'), '', 0, 0, '');
-                // Same fix as content.js: probe segments in parallel batches with
-                // a Range request for 1 byte instead of one full sequential GET
-                // per segment, which was adding real latency (and bandwidth) to
-                // every VOD download before the progress bar even started moving.
                 outer:
                 while (ghostCount < maxGhostSegments && consecutiveErrors < maxConsecutiveErrors) {
                     ensureActive();
@@ -786,11 +849,6 @@ const downloadVodInBackground = async (payload, tabId, controller) => {
         }
     };
 
-    // Same fix as the Chrome/Edge content.js path: flushing the transmuxer
-    // after every single segment forces a separate MP4 fragment per .ts,
-    // and irregular segment durations (unstable streamer connection) make
-    // the per-fragment timestamp rounding drift audio vs video over the
-    // length of the VOD. Batch several pushes before each flush instead.
     const TRANSMUX_FLUSH_BATCH_SIZE = 15;
     let segmentsSinceFlush = 0;
 
@@ -1017,6 +1075,40 @@ chrome.downloads.onChanged.addListener((delta) => {
     }
 });
 
+// --- Reporte de diagnóstico a los desarrolladores (opt-in por fallo) ---
+// Webhook fijo del propio desarrollador de BetterKick, distinto del webhook
+// configurable por el usuario para notificaciones de logros/VOD. Se usa
+// SOLO cuando fetchVideoData falla y el usuario acepta explícitamente
+// enviar el reporte (ver DIAGNOSTIC_REPORT_CONSENT en content.js).
+// El mensaje NO incluye ningún dato del usuario ni del canal/VOD: solo la
+// versión de la extensión como texto, y el .txt de diagnóstico adjunto.
+const DIAGNOSTIC_WEBHOOK_URL = 'https://discord.com/api/webhooks/1530091041846460496/CgdVal_rwqwknyTGIFw46Q56y0PU45vYsUUHMLsRvrjfSQxLhdjoXDmMU7RWorZWWqYP';
+
+async function sendDiagnosticReport(logText) {
+    try {
+        const version = chrome.runtime.getManifest().version;
+        const payload = { content: `📋 Reporte de diagnóstico automático — BetterKick v${version}` };
+
+        const form = new FormData();
+        form.append('payload_json', JSON.stringify(payload));
+        form.append(
+            'files[0]',
+            new Blob([logText], { type: 'text/plain' }),
+            `diagnostico_v${version}_${Date.now()}.txt`
+        );
+
+        const res = await fetch(DIAGNOSTIC_WEBHOOK_URL, { method: 'POST', body: form });
+        if (!res.ok) {
+            let detail = '';
+            try { detail = (await res.text()).slice(0, 300); } catch (e) {}
+            return { ok: false, error: `HTTP ${res.status} ${detail}` };
+        }
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: e && e.message ? e.message : 'fetch failed' };
+    }
+}
+
 const sendDiscordWebhook = async (url, embed) => {
     if (!url || typeof url !== 'string') {
         return { ok: false, error: 'No webhook URL configured' };
@@ -1117,6 +1209,52 @@ const buildWebhookEmbed = (event, data) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
+    if (message.type === 'SEND_DIAGNOSTIC_REPORT') {
+        (async () => {
+            const result = await sendDiagnosticReport(message.logText || '');
+            sendResponse(result);
+        })();
+        return true;
+    }
+
+    if (message.type === 'GET_SNIFFED_MASTER_URL') {
+        const tabId = sender.tab && sender.tab.id;
+        const entry = tabId != null ? sniffedMasterUrls.get(tabId) : null;
+        sendResponse({ url: entry ? entry.url : null, timestamp: entry ? entry.timestamp : null });
+        return false;
+    }
+
+    if (message.type === 'UNLOCK_ACHIEVEMENT') {
+        unlockAchievement(message.achievementId).catch(console.error);
+        return false;
+    }
+
+    if (message.type === 'SHARE_ACHIEVEMENT_WEBHOOK') {
+        (async () => {
+            const config = await getWebhookConfig();
+            if (!config.url) {
+                sendResponse({ ok: false, error: 'No webhook configured' });
+                return;
+            }
+            
+            const embed = {
+                title: `🏆 ¡Logro Desbloqueado: ${message.achievement.title}!`,
+                description: message.achievement.description,
+                color: 0x53fc18,
+                thumbnail: {
+                    url: 'https://raw.githubusercontent.com/TheNestorHD/BetterKick/refs/heads/BetterKick/icons/icon128.png'
+                },
+                footer: {
+                    text: 'BetterKick Achievements'
+                },
+                timestamp: new Date().toISOString()
+            };
+            
+            const result = await sendDiscordWebhook(config.url, embed);
+            sendResponse(result);
+        })();
+        return true;
+    }
 
     if (message.type === 'DISCORD_WEBHOOK_TEST') {
         (async () => {
@@ -1176,6 +1314,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         downloadVodInBackground(message.payload, tabId, controller).then((result) => {
             sendToTab(tabId, { type: 'VOD_DONE' });
             const p = message.payload || {};
+            
+            // Desbloquear logros
+            unlockAchievement('first_download', { channel: p.channel });
+            if (result && result.durationMs > 4 * 3600 * 1000) {
+                unlockAchievement('marathon', { channel: p.channel });
+            }
+            
             chrome.runtime.sendMessage({
                 type: 'DISCORD_WEBHOOK_NOTIFY',
                 event: 'vod_complete',
@@ -1243,29 +1388,76 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // --- CORRECCIÓN CRÍTICA: GRABACIÓN EN VIVO CON OPFS ---
     if (message.type === 'SR_STREAM_INIT') {
         const tabId = sender && sender.tab ? sender.tab.id : null;
         if (!tabId) return;
         const filename = message.filename || 'stream-recording.mp4';
-        srStreams.set(tabId, { chunks: [], filename });
+        
+        // Inicializamos con metadatos, no con un array de chunks en memoria
+        srStreams.set(tabId, { 
+            filename, 
+            opfsHandle: null, 
+            opfsWritable: null, 
+            opfsFileName: `sr-${Date.now()}-${Math.random().toString(16).slice(2)}.mp4`,
+            useOpfs: false
+        });
+        
+        // Intentar usar OPFS inmediatamente para evitar OOM en streams largos
+        if (navigator.storage && navigator.storage.getDirectory) {
+            navigator.storage.getDirectory().then(async (root) => {
+                const entry = srStreams.get(tabId);
+                if (!entry) return;
+                try {
+                    entry.opfsHandle = await root.getFileHandle(entry.opfsFileName, { create: true });
+                    entry.opfsWritable = await entry.opfsHandle.createWritable();
+                    entry.useOpfs = true;
+                    srStreams.set(tabId, entry);
+                } catch (e) {
+                    console.warn('BetterKick: OPFS no disponible para SR, usando fallback (puede fallar en streams largos)', e);
+                    entry.useOpfs = false;
+                    srStreams.set(tabId, entry);
+                }
+            }).catch(() => {});
+        }
         return;
     }
 
     if (message.type === 'SR_STREAM_APPEND') {
         const tabId = sender && sender.tab ? sender.tab.id : null;
         if (!tabId) return;
-        const entry = srStreams.get(tabId) || { chunks: [], filename: message.filename || 'stream-recording.mp4' };
+        const entry = srStreams.get(tabId);
+        if (!entry) return;
+        
         const chunk = message.chunk;
         if (chunk && (chunk.byteLength || (chunk.buffer && chunk.buffer.byteLength))) {
-            entry.chunks.push(new Uint8Array(chunk));
+            const data = new Uint8Array(chunk);
+            
+            if (entry.useOpfs && entry.opfsWritable) {
+                // ESCRITURA DIRECTA A DISCO: Cero consumo de RAM
+                entry.opfsWritable.write(data).catch(e => {
+                    console.error('BetterKick: Error escribiendo chunk SR a OPFS:', e);
+                });
+            } else {
+                // Fallback solo si OPFS falló (streams cortos)
+                if (!entry.chunks) entry.chunks = [];
+                entry.chunks.push(data);
+                srStreams.set(tabId, entry);
+            }
         }
-        srStreams.set(tabId, entry);
         return;
     }
 
     if (message.type === 'SR_STREAM_ABORT') {
         const tabId = sender && sender.tab ? sender.tab.id : null;
         if (!tabId) return;
+        const entry = srStreams.get(tabId);
+        if (entry) {
+            if (entry.useOpfs && entry.opfsWritable) {
+                entry.opfsWritable.abort().catch(() => {});
+                removeOpfsEntry(entry.opfsFileName);
+            }
+        }
         srStreams.delete(tabId);
         return;
     }
@@ -1276,25 +1468,117 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const action = message.action || 'keep';
         const entry = srStreams.get(tabId);
         if (!entry) return;
+        
         const filename = message.filename || entry.filename || 'stream-recording.mp4';
         const initBuf = message.init ? new Uint8Array(message.init) : null;
-        const parts = [];
-        if (initBuf && initBuf.byteLength > 0) parts.push(initBuf);
-        for (const c of entry.chunks) parts.push(c);
-        srStreams.delete(tabId);
-        if (action === 'keep') {
-            const blob = new Blob(parts, { type: 'video/mp4' });
-            const objectUrl = URL.createObjectURL(blob);
-            chrome.downloads.download({
-                url: objectUrl,
-                filename,
-                saveAs: true
-            }).then((id) => {
-                downloadUrls.set(id, { url: objectUrl });
-            }).catch(() => {
-                try { URL.revokeObjectURL(objectUrl); } catch (_) {}
-            });
-        }
+
+        const finalizeAndDownload = async () => {
+            if (entry.useOpfs && entry.opfsWritable) {
+                try {
+                    await entry.opfsWritable.close();
+                    const file = await entry.opfsHandle.getFile();
+                    
+                    // Si hay init segment, necesitamos fusionarlo (OPFS no permite prepend fácil, 
+                    // pero para SR el init suele venir en el primer chunk o se maneja en content.js)
+                    // Si initBuf existe, lo leemos y creamos un blob combinado (solo para el final, es seguro)
+                    if (initBuf && initBuf.byteLength > 0) {
+                        const initBlob = new Blob([initBuf], { type: 'video/mp4' });
+                        const combinedBlob = new Blob([initBlob, file], { type: 'video/mp4' });
+                        const objectUrl = URL.createObjectURL(combinedBlob);
+                        if (action === 'keep') {
+                            unlockAchievement('first_sr');
+                            const id = await chrome.downloads.download({ url: objectUrl, filename, saveAs: true });
+                            downloadUrls.set(id, { url: objectUrl });
+                        }
+                    } else {
+                        const objectUrl = URL.createObjectURL(file);
+                        if (action === 'keep') {
+                            unlockAchievement('first_sr');
+                            const id = await chrome.downloads.download({ url: objectUrl, filename, saveAs: true });
+                            downloadUrls.set(id, { url: objectUrl, opfsFileName: entry.opfsFileName });
+                        } else {
+                            URL.revokeObjectURL(objectUrl);
+                            await removeOpfsEntry(entry.opfsFileName);
+                        }
+                    }
+                } catch (e) {
+                    console.error('BetterKick: Error finalizando SR con OPFS:', e);
+                }
+            } else {
+                // Fallback a memoria (solo para streams muy cortos donde OPFS falló)
+                const parts = [];
+                if (initBuf && initBuf.byteLength > 0) parts.push(initBuf);
+                if (entry.chunks) {
+                    for (const c of entry.chunks) parts.push(c);
+                }
+                if (action === 'keep' && parts.length > 0) {
+                    unlockAchievement('first_sr');
+                    const blob = new Blob(parts, { type: 'video/mp4' });
+                    const objectUrl = URL.createObjectURL(blob);
+                    chrome.downloads.download({
+                        url: objectUrl,
+                        filename,
+                        saveAs: true
+                    }).then((id) => {
+                        downloadUrls.set(id, { url: objectUrl });
+                    }).catch(() => {
+                        try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+                    });
+                }
+            }
+            srStreams.delete(tabId);
+        };
+
+        finalizeAndDownload();
         return;
     }
 });
+chrome.alarms.create('checkNoticias', { periodInMinutes: 60 });
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'checkNoticias') fetchNoticias();
+});
+chrome.runtime.onInstalled.addListener((details) => {
+    fetchNoticias();
+    if (details.reason === 'install') {
+        chrome.tabs.create({ url: 'welcome.html' });
+    }
+});
+
+async function fetchNoticias() {
+    try {
+        const url = 'https://raw.githubusercontent.com/TheNestorHD/BetterKick/BetterKick/noticias.md';
+        const response = await fetch(url);
+        if (!response.ok) return;
+        
+        const texto = await response.text();
+        const noticias = parsearMarkdown(texto);
+        
+        if (noticias.length > 0) {
+            const ultimaId = noticias[0].id; 
+            await chrome.storage.local.set({ noticias: noticias, ultima_noticia_sistema: ultimaId });
+            
+            const data = await chrome.storage.local.get('ultima_noticia_vista');
+            if (data.ultima_noticia_vista !== ultimaId) {
+                chrome.action.setBadgeText({ text: "!" });
+                chrome.action.setBadgeBackgroundColor({ color: "#ff3b30" });
+            }
+        }
+    } catch (error) {
+        console.warn("No se pudieron descargar las noticias:", error);
+    }
+}
+
+function parsearMarkdown(md) {
+    const bloques = md.split(/^# /m).filter(b => b.trim());
+    return bloques.map(bloque => {
+        const lineas = bloque.split('\n');
+        const titulo = lineas[0].trim();
+        let contenido = lineas.slice(1).join('\n').trim();
+        // Convertir imágenes ![alt](url) a <img>
+        contenido = contenido.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%; border-radius:6px; margin-top:8px;">');
+        // Convertir enlaces [texto](url) a <a> clickeables
+        contenido = contenido.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:#53fc18; text-decoration:underline;">$1</a>');
+        return { id: titulo, titulo: titulo, contenido: contenido };
+    });
+}

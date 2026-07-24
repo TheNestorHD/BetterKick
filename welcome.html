@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterKick - Bienvenido</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0b0e11 0%, #1a1f23 100%);
+            color: #fff;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .logo {
+            font-size: 48px;
+            font-weight: 700;
+            color: #53fc18;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(83, 252, 24, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            color: #a0a0a0;
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #53fc18;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #1f2226;
+        }
+        
+        .noticia-card {
+            background: #1f2226;
+            border: 1px solid #2a2f33;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .noticia-card:hover {
+            border-color: #53fc18;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(83, 252, 24, 0.1);
+        }
+        
+        .noticia-card h3 {
+            color: #53fc18;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .noticia-card p {
+            color: #d0d0d0;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #a0a0a0;
+            font-size: 16px;
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #1f2226;
+            color: #a0a0a0;
+            font-size: 14px;
+        }
+        
+        .footer a {
+            color: #53fc18;
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">BetterKick</div>
+            <p class="subtitle">La extensión definitiva para Kick.com</p>
+        </div>
+        
+        <h2 class="section-title">Últimas Novedades</h2>
+        <div id="noticias-container">
+            <div class="loading">Cargando noticias</div>
+        </div>
+        
+        <div class="footer">
+            <p>¿Problemas o sugerencias? <a href="https://github.com/TheNestorHD/BetterKick/issues" target="_blank">Abrí un issue en GitHub</a></p>
+            <p style="margin-top: 10px;">¡Gracias por usar BetterKick! 🚀</p>
+        </div>
+    </div>
+    
+    <script src="welcome.js"></script>
+</body>
+</html>

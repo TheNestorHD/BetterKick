@@ -1,298 +1,543 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
     <title>BetterKick</title>
     <style>
+        :root {
+            --kick-green: #53fc18;
+            --kick-green-hover: #42c912;
+            --kick-dark: #0b0e11;
+            --kick-card: #141618;
+            --kick-border: #1f2226;
+            --kick-text: #ffffff;
+            --kick-text-muted: #aeb4b7;
+            --kick-danger: #ff2b2b;
+            --kick-danger-hover: #e20000;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            width: 320px;
-            padding: 15px;
-            font-family: 'Inter', sans-serif;
-            background-color: #0b0e11;
-            color: #fff;
+            width: 340px;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--kick-dark);
+            color: var(--kick-text);
+            font-size: 13px;
+            line-height: 1.5;
         }
-        h2 {
-            color: #53fc18;
-            margin-top: 0;
-            font-size: 18px;
-            margin-bottom: 0;
-        }
-        .header-row {
+
+        /* Header */
+        .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            padding: 16px;
+            border-bottom: 1px solid var(--kick-border);
+            background: linear-gradient(180deg, rgba(83, 252, 24, 0.05) 0%, transparent 100%);
         }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--kick-text);
+        }
+
+        .header-title span {
+            color: var(--kick-green);
+        }
+
+        .version-badge {
+            font-size: 10px;
+            background: var(--kick-border);
+            color: var(--kick-text-muted);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
         .donate-btn {
             background: transparent;
-            color: #53fc18;
-            border: 1px solid #53fc18;
-            padding: 4px 10px;
-            border-radius: 12px;
+            color: var(--kick-green);
+            border: 1px solid var(--kick-green);
+            padding: 6px 12px;
+            border-radius: 6px;
             font-size: 11px;
+            font-weight: 700;
             cursor: pointer;
-            font-weight: bold;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+
         .donate-btn:hover {
-            background: #53fc18;
-            color: #000;
-            box-shadow: 0 0 8px rgba(83, 252, 24, 0.4);
+            background: var(--kick-green);
+            color: var(--kick-dark);
+            box-shadow: 0 0 12px rgba(83, 252, 24, 0.3);
         }
-        p {
-            font-size: 14px;
-            color: #ccc;
-            margin: 5px 0 10px;
+
+        /* Content */
+        .content {
+            padding: 16px;
+        }
+
+        .intro-text {
+            color: var(--kick-text-muted);
+            margin: 0 0 16px 0;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .intro-text .highlight {
+            color: var(--kick-green);
+            font-weight: 600;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--kick-card);
+            border: 1px solid var(--kick-border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--kick-green);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .card-hint {
+            font-size: 11px;
+            color: var(--kick-text-muted);
+            margin: 0 0 10px 0;
             line-height: 1.4;
         }
-        .highlight {
-            color: #53fc18;
-            font-weight: bold;
-        }
-        .warning {
+
+        /* Inputs & Buttons */
+        input[type="text"], input[type="url"] {
+            width: 100%;
+            background: var(--kick-dark);
+            border: 1px solid var(--kick-border);
+            color: var(--kick-text);
+            padding: 8px 10px;
+            border-radius: 6px;
             font-size: 12px;
-            color: #aaa;
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 1px solid #333;
-            font-style: italic;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            margin-bottom: 8px;
         }
-        
-        /* Command Library Styles */
-        #library-section {
-            display: none; /* Hidden by default */
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #333;
+
+        input[type="text"]:focus, input[type="url"]:focus {
+            outline: none;
+            border-color: var(--kick-green);
+            box-shadow: 0 0 0 2px rgba(83, 252, 24, 0.15);
         }
-        
-        .lib-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .lib-title {
-            color: #53fc18;
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        
-        .lib-list {
-            max-height: 200px;
-            overflow-y: auto;
-            margin-bottom: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        
-        .lib-item {
-            display: flex;
-            gap: 5px;
-        }
-        
-        .lib-btn {
-            flex: 1;
-            background: #191b1f;
-            border: 1px solid #333;
-            color: #fff;
+
+        .btn-primary {
+            width: 100%;
+            background: var(--kick-green);
+            color: var(--kick-dark);
+            border: none;
             padding: 8px;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            text-align: left;
-            font-size: 13px;
-            transition: all 0.2s;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            font-weight: 700;
+            font-size: 12px;
+            transition: all 0.2s ease;
         }
-        
-        .lib-btn:hover {
-            border-color: #53fc18;
-            background: #222;
+
+        .btn-primary:hover {
+            background: var(--kick-green-hover);
+            transform: translateY(-1px);
         }
-        
-        .del-btn {
-            background: #331111;
-            border: 1px solid #552222;
-            color: #ff5555;
-            width: 30px;
-            border-radius: 4px;
+
+        .btn-secondary {
+            background: var(--kick-dark);
+            color: var(--kick-text);
+            border: 1px solid var(--kick-border);
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--kick-green);
+            color: var(--kick-green);
+        }
+
+        .btn-danger {
+            background: rgba(255, 43, 43, 0.1);
+            color: var(--kick-danger);
+            border: 1px solid rgba(255, 43, 43, 0.3);
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
         }
-        
-        .del-btn:hover {
-            background: #551111;
-            border-color: #ff5555;
+
+        .btn-danger:hover {
+            background: var(--kick-danger);
+            color: white;
+            border-color: var(--kick-danger);
         }
-        
-        .add-form {
+
+        /* Library Specific */
+        .lib-list {
+            max-height: 180px;
+            overflow-y: auto;
+            margin-bottom: 12px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
-            background: #141414;
-            padding: 10px;
+            gap: 6px;
+        }
+
+        .lib-item {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .lib-btn {
+            flex: 1;
+            background: var(--kick-dark);
+            border: 1px solid var(--kick-border);
+            color: var(--kick-text);
+            padding: 8px 10px;
             border-radius: 6px;
+            cursor: pointer;
+            text-align: left;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .lib-btn:hover {
+            border-color: var(--kick-green);
+            background: rgba(83, 252, 24, 0.05);
         }
 
         .scope-selector {
             display: flex;
-            gap: 10px;
-            margin-bottom: 5px;
+            gap: 12px;
+            margin-bottom: 8px;
             font-size: 12px;
-            color: #ccc;
-            align-items: center;
+            color: var(--kick-text-muted);
         }
 
         .scope-selector label {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
             cursor: pointer;
         }
 
         .scope-selector input[type="radio"] {
             margin: 0;
-            accent-color: #53fc18;
-        }
-        
-        input[type="text"] {
-            background: #000;
-            border: 1px solid #333;
-            color: #fff;
-            padding: 6px;
-            border-radius: 3px;
-            font-size: 12px;
-            font-family: inherit;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #53fc18;
-        }
-        
-        .add-btn {
-            background: #53fc18;
-            color: #000;
-            border: none;
-            padding: 6px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 12px;
-            margin-top: 5px;
-        }
-        
-        .add-btn:hover {
-            opacity: 0.9;
+            accent-color: var(--kick-green);
         }
 
-        .admin-card {
-            margin-top: 12px;
-            padding: 10px;
-            background: #141414;
-            border-radius: 6px;
-            border: 1px solid #333;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
+        /* Config Rows */
         .config-row {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             font-size: 12px;
-            color: #ccc;
+            color: var(--kick-text);
+            margin-bottom: 8px;
+            cursor: pointer;
         }
 
         .config-row input[type="checkbox"] {
-            accent-color: #53fc18;
+            accent-color: var(--kick-green);
             margin: 0;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+
+        .config-row span {
+            user-select: none;
+        }
+
+        /* Webhook Status */
+        .status-text {
+            font-size: 11px;
+            min-height: 16px;
+            display: block;
+            margin-top: 6px;
+        }
+
+        .status-success { color: var(--kick-green); }
+        .status-error { color: var(--kick-danger); }
+
+        /* Footer Warning */
+        .footer-warning {
+            font-size: 11px;
+            color: var(--kick-text-muted);
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--kick-border);
+            font-style: italic;
+            line-height: 1.5;
         }
 
         /* Scrollbar */
         ::-webkit-scrollbar {
-            width: 5px;
+            width: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: #0b0e11; 
+            background: var(--kick-dark); 
         }
         ::-webkit-scrollbar-thumb {
-            background: #333; 
-            border-radius: 5px;
+            background: var(--kick-border); 
+            border-radius: 3px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #555; 
+            background: #2a2e33; 
+        }
+        /* Noticias Cards */
+        .noticia-card {
+            background: var(--kick-card);
+            border: 1px solid var(--kick-border);
+            border-radius: 8px;
+            padding: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .noticia-card:hover {
+            border-color: var(--kick-green);
+            box-shadow: 0 2px 8px rgba(83, 252, 24, 0.1);
+        }
+
+        .noticia-card h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--kick-green);
+            line-height: 1.4;
+        }
+
+        .noticia-card p {
+            margin: 0;
+            font-size: 12px;
+            color: var(--kick-text-muted);
+            line-height: 1.5;
+        }
+
+        .noticia-card img {
+            max-width: 100%;
+            border-radius: 6px;
+            margin-top: 10px;
+            border: 1px solid var(--kick-border);
+            display: block;
+        }
+
+        .texto-secundario {
+            font-size: 12px;
+            color: var(--kick-text-muted);
+            text-align: center;
+            padding: 10px 0;
+            font-style: italic;
+        }
+
+        /* Logros */
+        .achievements-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .achievement-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--kick-dark);
+            border: 1px solid var(--kick-border);
+            border-radius: 8px;
+            padding: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .achievement-card.unlocked {
+            border-color: var(--kick-green);
+            background: rgba(83, 252, 24, 0.05);
+        }
+
+        .achievement-card.locked {
+            opacity: 0.6;
+            filter: grayscale(1);
+        }
+
+        .achievement-icon {
+            font-size: 24px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--kick-card);
+            border-radius: 50%;
+            border: 1px solid var(--kick-border);
+            flex-shrink: 0;
+        }
+
+        .achievement-card.unlocked .achievement-icon {
+            background: rgba(83, 252, 24, 0.1);
+            border-color: var(--kick-green);
+        }
+
+        .achievement-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .achievement-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--kick-text);
+            margin-bottom: 2px;
+        }
+
+        .achievement-card.locked .achievement-title {
+            color: var(--kick-text-muted);
+        }
+
+        .achievement-desc {
+            font-size: 11px;
+            color: var(--kick-text-muted);
+            line-height: 1.3;
+        }
+
+        .btn-share-webhook {
+            background: transparent;
+            border: 1px solid var(--kick-border);
+            color: var(--kick-text-muted);
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            margin-top: 8px;
+        }
+
+        .btn-share-webhook:hover {
+            border-color: #5865F2;
+            color: #5865F2;
+            background: rgba(88, 101, 242, 0.1);
+        }
+
+        .btn-share-webhook:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Utility */
+        .flex-row {
+            display: flex;
+            gap: 8px;
+        }
+        .flex-row .btn-primary {
+            flex: 1;
         }
     </style>
 </head>
 <body>
-    <div class="header-row">
-        <h2 data-kvd-i18n="popup.title">BetterKick</h2>
+    <div class="header">
+        <h1 class="header-title">
+            Better<span>Kick</span>
+            <span class="version-badge">v1.1.2</span>
+        </h1>
         <button id="donate-btn" class="donate-btn" data-kvd-i18n="popup.donate">DONATE</button>
     </div>
-    <p>
-        <span data-kvd-i18n="popup.intro.prefix">Go to any</span>
-        <span class="highlight" data-kvd-i18n="popup.intro.vod">Kick VOD</span>
-        <span data-kvd-i18n="popup.intro.middle">page and look for the</span>
-        <span class="highlight" data-kvd-i18n="popup.intro.button">Download MP4</span>
-        <span data-kvd-i18n="popup.intro.suffix">button.</span>
-    </p>
 
-    <div id="amp-section" style="display:none; margin-top: 12px; padding: 10px; background:#141414; border-radius:6px; border:1px solid #333;">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-            <img src="assets/amplifier.png" alt="Amplifier" style="width:20px; height:20px;">
-            <span style="font-size:12px; font-weight:700; color:#53fc18;" data-kvd-i18n="popup.amp.title">Amplifier</span>
-            <span id="amp-value" style="margin-left:auto; font-size:12px; color:#ccc;">+0 dB</span>
-        </div>
-        <input id="amp-slider" type="range" min="0" max="48" step="1" value="0" style="width:100%;">
-    </div>
-    
-    <div id="panel-positions-section" style="margin-top: 12px; padding: 10px; background:#141414; border-radius:6px; border:1px solid #333;">
-        <span style="font-size:12px; font-weight:700; color:#53fc18; display:block; margin-bottom:6px;" data-kvd-i18n="popup.panels.title">Panel positions</span>
-        <p style="font-size:11px; color:#888; margin: 0 0 8px;" data-kvd-i18n="popup.panels.hint">Downloader, recorder, and streamer-mode panels remember where you dragged them.</p>
-        <button id="reset-panel-positions-btn" class="add-btn" data-kvd-i18n="popup.panels.reset_button">Reset panel positions</button>
-        <span id="panel-positions-status" style="font-size:11px; min-height:14px; display:block; margin-top:4px;"></span>
-    </div>
+    <div class="content">
+        <p class="intro-text">
+            <span data-kvd-i18n="popup.intro.prefix">Go to any</span>
+            <span class="highlight" data-kvd-i18n="popup.intro.vod">Kick VOD</span>
+            <span data-kvd-i18n="popup.intro.middle">page and look for the</span>
+            <span class="highlight" data-kvd-i18n="popup.intro.button">Download MP4</span>
+            <span data-kvd-i18n="popup.intro.suffix">button.</span>
+        </p>
 
-    <div id="library-section">
-        <div class="lib-header">
-            <span class="lib-title" data-kvd-i18n="popup.library.title">Admin Command Library</span>
-        </div>
-        <p style="font-size: 11px; color: #888; margin-top: -8px; margin-bottom: 10px; font-style: italic;" data-kvd-i18n="popup.library.hint">Please select the chat input box first.</p>
-        
-        <div id="library-list" class="lib-list">
-            <!-- Items will be injected here -->
-        </div>
-        
-        <div class="add-form">
-            <div class="scope-selector">
-                <label>
-                    <input type="radio" name="scope" value="global" checked>
-                    <span data-kvd-i18n="popup.library.scope_global">Global</span>
-                </label>
-                <label>
-                    <input type="radio" name="scope" value="channel">
-                    <span data-kvd-i18n="popup.library.scope_channel">This Channel</span>
-                </label>
+        <!-- Amplifier -->
+        <div id="amp-section" class="card" style="display:none;">
+            <div class="card-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                <span data-kvd-i18n="popup.amp.title">Amplifier</span>
             </div>
-            <input type="text" id="new-label" placeholder="Label (e.g. Discord)" maxlength="20" data-kvd-i18n="popup.library.label_placeholder" data-kvd-i18n-attr="placeholder">
-            <input type="text" id="new-msg" placeholder="Message/Command (e.g. !discord)" data-kvd-i18n="popup.library.message_placeholder" data-kvd-i18n-attr="placeholder">
-            <button id="add-btn" class="add-btn" data-kvd-i18n="popup.library.add_button">+ Add to Library</button>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-size:11px; color:var(--kick-text-muted);" data-kvd-i18n="popup.amp.hint">Boost audio volume</span>
+                <span id="amp-value" style="font-size:12px; font-weight:700; color:var(--kick-green);">+0 dB</span>
+            </div>
+            <input id="amp-slider" type="range" min="0" max="48" step="1" value="0" style="width:100%; accent-color: var(--kick-green);">
         </div>
 
-        <div class="admin-card" id="highlight-section">
-            <span class="lib-title" data-kvd-i18n="popup.highlight.title">Chat Highlights</span>
+    <div id="noticias-container" style="margin-top: 15px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px;"></div>
+    
+    <!-- Library -->
+    <div id="library-section" class="card" style="display:none;">
+            <div class="card-title" data-kvd-i18n="popup.library.title">Admin Command Library</div>
+            <p class="card-hint" data-kvd-i18n="popup.library.hint">Please select the chat input box first.</p>
+            
+            <div id="library-list" class="lib-list"></div>
+            
+            <div style="background: var(--kick-dark); padding: 10px; border-radius: 6px; border: 1px solid var(--kick-border);">
+                <div class="scope-selector">
+                    <label>
+                        <input type="radio" name="scope" value="global" checked>
+                        <span data-kvd-i18n="popup.library.scope_global">Global</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="scope" value="channel">
+                        <span data-kvd-i18n="popup.library.scope_channel">This Channel</span>
+                    </label>
+                </div>
+                <input type="text" id="new-label" placeholder="Label (e.g. Discord)" maxlength="20" data-kvd-i18n="popup.library.label_placeholder" data-kvd-i18n-attr="placeholder">
+                <input type="text" id="new-msg" placeholder="Message/Command (e.g. !discord)" data-kvd-i18n="popup.library.message_placeholder" data-kvd-i18n-attr="placeholder">
+                <button id="add-btn" class="btn-primary" data-kvd-i18n="popup.library.add_button">+ Add to Library</button>
+            </div>
+        </div>
+
+        <!-- Highlights -->
+        <div id="highlight-section" class="card" style="display:none;">
+            <div class="card-title" data-kvd-i18n="popup.highlight.title">Chat Highlights</div>
             <label class="config-row">
                 <input type="checkbox" id="highlight-first">
                 <span data-kvd-i18n="popup.highlight.first_message">First message highlight</span>
@@ -302,13 +547,14 @@
                 <span data-kvd-i18n="popup.highlight.keyword">Keyword highlight</span>
             </label>
             <input type="text" id="highlight-words" placeholder="Keywords (comma separated)" data-kvd-i18n="popup.highlight.placeholder" data-kvd-i18n-attr="placeholder">
-            <button id="highlight-save" class="add-btn" data-kvd-i18n="popup.highlight.save_button">Save Highlights</button>
+            <button id="highlight-save" class="btn-primary" data-kvd-i18n="popup.highlight.save_button">Save Highlights</button>
         </div>
 
-        <div class="admin-card" id="webhook-section">
-            <span class="lib-title" data-kvd-i18n="popup.webhook.title">Discord Webhooks</span>
-            <p style="font-size: 11px; color: #888; margin: -4px 0 2px;" data-kvd-i18n="popup.webhook.hint">Get notified in a Discord channel about downloads.</p>
-            <input type="text" id="webhook-url" placeholder="https://discord.com/api/webhooks/..." data-kvd-i18n="popup.webhook.url_placeholder" data-kvd-i18n-attr="placeholder">
+        <!-- Webhooks -->
+        <div id="webhook-section" class="card" style="display:none;">
+            <div class="card-title" data-kvd-i18n="popup.webhook.title">Discord Webhooks</div>
+            <p class="card-hint" data-kvd-i18n="popup.webhook.hint">Get notified in a Discord channel about downloads. (Optional, stays in your browser)</p>
+            <input type="url" id="webhook-url" placeholder="https://discord.com/api/webhooks/..." data-kvd-i18n="popup.webhook.url_placeholder" data-kvd-i18n-attr="placeholder">
             <label class="config-row">
                 <input type="checkbox" id="webhook-notify-vod">
                 <span data-kvd-i18n="popup.webhook.notify_vod">VOD download finished</span>
@@ -317,16 +563,37 @@
                 <input type="checkbox" id="webhook-notify-live">
                 <span data-kvd-i18n="popup.webhook.notify_live">Live recording started/finished</span>
             </label>
-            <div style="display:flex; gap:5px;">
-                <button id="webhook-save" class="add-btn" style="flex:1;" data-kvd-i18n="popup.webhook.save_button">Save</button>
-                <button id="webhook-test" class="add-btn" style="flex:1; background:#191b1f; color:#53fc18; border:1px solid #53fc18;" data-kvd-i18n="popup.webhook.test_button">Send Test</button>
+            <div class="flex-row">
+                <button id="webhook-save" class="btn-primary" data-kvd-i18n="popup.webhook.save_button">Save</button>
+                <button id="webhook-test" class="btn-secondary" data-kvd-i18n="popup.webhook.test_button">Send Test</button>
             </div>
-            <span id="webhook-status" style="font-size:11px; min-height:14px; display:block;"></span>
+            <span id="webhook-status" class="status-text"></span>
+        </div>
+
+    <!-- Logros -->
+    <div id="achievements-section" class="card">
+        <div class="card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+            <span>Logros</span>
+        </div>
+        <div id="achievements-list" class="achievements-list">
+            <!-- Se llena con JS -->
         </div>
     </div>
 
-    <p class="warning" data-kvd-i18n="popup.warning">Note: If a download is interrupted or fails, a 0KB .mp4 file may remain on your device.</p>
-    
-    <script src="popup.js"></script>
+   <!-- Panel Positions -->
+    <div id="panel-positions-section" class="card">
+    <div class="card-title" data-kvd-i18n="popup.panels.title">Panel positions</div>
+    <p class="card-hint" data-kvd-i18n="popup.panels.hint">Downloader, recorder, and streamer-mode panels remember where you dragged them.</p>
+    <button id="reset-panel-positions-btn" class="btn-secondary" style="width:100%;" data-kvd-i18n="popup.panels.reset_button">Reset panel positions</button>
+    <span id="panel-positions-status" class="status-text"></span>
+    </div>
+
+    <p class="footer-warning" data-kvd-i18n="popup.warning">Note: If a download is interrupted or fails, a 0KB .mp4 file may remain on your device.</p>
+    </div>
+
+
+
+<script src="popup.js"></script>
 </body>
 </html>
