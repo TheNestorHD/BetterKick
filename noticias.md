@@ -2,6 +2,9 @@
 Esta es la primera versión del sistema de noticias.
 <img width="32" height="32" alt="icon48" src="https://github.com/user-attachments/assets/a573d460-2a67-48c3-be0b-8d0d96d38426" />
 
+# 23 Oct - Actualización de Kick #2
+Kick volvió a cambiar la forma de obtener los streams... A estas alturas no sé porqué lo hacen. La actualización tardará en llegar un poco, pero llegará.
+
 # 22 Oct - Actualización de Kick
 Kick cambió la forma en la que se obtienen los streams, por lo que la descarga estaba fallando. Actualicé la extensión y ahora todo debería funcionar.
 
