@@ -1,12 +1,10 @@
-# 25 Oct - Bienvenidos a BetterKick
-Esta es la primera versión del sistema de noticias.
-<img width="32" height="32" alt="icon48" src="https://github.com/user-attachments/assets/a573d460-2a67-48c3-be0b-8d0d96d38426" />
+# 24 Oct - Bienvenidos a BetterKick
+Recién salida del horno, para todos ustedes.
+¡Bienvenidos a la versión 1.1.2 de BetterKick!
 
-# 23 Oct - Actualización de Kick #2
-Kick volvió a cambiar la forma de obtener los streams... A estas alturas no sé porqué lo hacen. La actualización tardará en llegar un poco, pero llegará.
-
-# 22 Oct - Actualización de Kick
-Kick cambió la forma en la que se obtienen los streams, por lo que la descarga estaba fallando. Actualicé la extensión y ahora todo debería funcionar.
+# 22 y 23 Oct - Cambios en la API de Kick
+Durante estos días, actualizar la extensión fué un infierno. Espero sepan comprender la demora en la update. Ya quedó lista la nueva actualización.
+Se agregó este apartado de noticias y se agregó un sistema de reportes de error, el cual solicitará permiso para enviarse. 
 
 # Nuestra historia:
 Esta extensión comenzó a inicios de 2026 bajo el nombre de "KickVODdownloader" y solamente descargaba VODs de Kick.
