@@ -1,3 +1,10 @@
+# 28 Oct - Refactorización del código fuente
+¡Hola de nuevo! Quería informarles que la próxima actualización tardará un poco en salir, ya que voy a refactorizar el código fuente y voy a aplicar mejoras para evitar errores.
+
+# 27 Oct - Kick y su sistema de publicidad
+¡Hola a todos! El día de hoy paso a informarles que Kick está incorporando publicidad propia en algunos canales. Esto realentiza la carga de las fuentes de video un segundo. Si presionas el botón de "Descargar MP4" demasiado rápido, la extensión no logra capturar los VODs y vas a ver un error. Ten paciencia, lo arreglaré en la próxima actualización.
+PD: La publicidad sale en los VODs, puedes recortar los primeros 30 segundos o simplemente descargar el VOD con todo y publicidad.
+
 # 24 Oct - Bienvenidos a BetterKick
 Recién salida del horno, para todos ustedes.
 ¡Bienvenidos a la versión 1.1.2 de BetterKick!
