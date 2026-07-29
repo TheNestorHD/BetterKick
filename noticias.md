@@ -1,3 +1,6 @@
+# 29 Oct - Diario del desarrollador
+Hoy encontré un par de bugs que se provocaban por intentar descargar los VODs demasiado rápido. Arreglé eso. Pronto tendrán la versión 1.1.3 en las tiendas!
+
 # 28 Oct - Refactorización del código fuente
 ¡Hola de nuevo! Quería informarles que la próxima actualización tardará un poco en salir, ya que voy a refactorizar el código fuente y voy a aplicar mejoras para evitar errores.
 
