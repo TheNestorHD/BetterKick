@@ -12,10 +12,6 @@ PD: La publicidad sale en los VODs, puedes recortar los primeros 30 segundos o s
 Recién salida del horno, para todos ustedes.
 ¡Bienvenidos a la versión 1.1.2 de BetterKick!
 
-# 22 y 23 Oct - Cambios en la API de Kick
-Durante estos días, actualizar la extensión fué un infierno. Espero sepan comprender la demora en la update. Ya quedó lista la nueva actualización.
-Se agregó este apartado de noticias y se agregó un sistema de reportes de error, el cual solicitará permiso para enviarse. 
-
 # Nuestra historia:
 Esta extensión comenzó a inicios de 2026 bajo el nombre de "KickVODdownloader" y solamente descargaba VODs de Kick.
 Al principio, esto tenía muchos fallos, así que rehice el código desde cero, implementando una interfaz más atractiva y acorde a Kick, junto con otras funciones.
