@@ -1,3 +1,7 @@
+# 30 Oct - Diario del desarrollador #2
+Estoy simplificando la interfaz para que la extensión sea más sencilla de utilizar. Ahora las descargas se hacen de forma más eficiente y utilizan el sistema de descargas nativo del navegador.
+Cuando una descarga comience, puedes ir a ver otros canales mientras descargas el VOD, cuando termine, automáticamente verás el archivo en tu carpeta de descargas.
+
 # 29 Oct - Diario del desarrollador
 Hoy encontré un par de bugs que se provocaban por intentar descargar los VODs demasiado rápido. Arreglé eso. Pronto tendrán la versión 1.1.3 en las tiendas!
 
