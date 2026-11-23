@@ -1,0 +1,32 @@
+CONTEXTO UNIVERSAL — ECOSISTEMA BETTERKICK
+Actualizado: 2026-11-23
+
+Estamos desarrollando varias herramientas independientes para mejorar la experiencia en Kick. Cada repositorio contiene una idea o módulo distinto, que se diseña, desarrolla y prueba por separado antes de plantear su integración en la extensión principal BetterKick.
+
+REPOSITORIO PRINCIPAL:
+https://github.com/TheNestorHD/BetterKick
+
+DOCUMENTO DE CONTEXTO CENTRAL (LEER PRIMERO):
+https://github.com/TheNestorHD/BetterKick/blob/BetterKick/PROJECT_CONTEXT.md
+
+PRIMER MÓDULO INDEPENDIENTE — BETTERKICK LIVEMARKERS:
+https://github.com/TheNestorHD/BetterKick-livemarkers
+
+INSTRUCCIONES PARA CUALQUIER INSTANCIA DE IA O COLABORADOR:
+1. Abrí y leé el documento de contexto central de BetterKick en el enlace anterior. Es la fuente principal sobre visión, repositorios, decisiones y plan de integración.
+2. Revisá el repositorio específico en el que vamos a trabajar: README.md, PROJECT_CONTEXT.md, estructura, código, pruebas, issues y commits recientes. Comprobá el estado real antes de proponer cambios.
+3. No asumas que las ideas planificadas ya están implementadas. Distinguí claramente entre FUNCIONAL, EN PRUEBAS, PLANEADO y DESCARTADO.
+4. Trabajá cada módulo de forma independiente y mantené compatibilidad futura con BetterKick. No copies indiscriminadamente todo a BetterKick ni modifiques la extensión principal sin que te lo pidamos.
+5. La META FINAL es una mega actualización de la extensión base BetterKick que incorpore, de forma modular, todas las funciones que hayan madurado y superado las pruebas. El trabajo de integración debe llegar después, con revisión de conflictos, permisos, rendimiento, privacidad, traducciones y licencias.
+6. Respetá el código, los datos y las funciones existentes; hacé cambios pequeños, verificables y reversibles. No edites ROADMAP.md del repositorio BetterKick: contiene una instrucción expresa de lectura solamente.
+7. Usá fuentes actuales cuando haya que confirmar detalles de Kick. Las rutas web internas y su DOM pueden cambiar; no son contratos públicos de API. No atribuyas reconocimiento ni adopción del código por parte de Kick sin evidencia.
+8. Para cada entrega, documentá cambios, pruebas ejecutadas, limitaciones y pasos para reproducir. Nunca afirmes que una prueba real pasó si solo se hizo en simulación.
+9. Evitá usar servicios o datos externos innecesarios. Prioridad: código abierto, procesamiento local, poca RAM/CPU, interfaz discreta e integración limpia con el reproductor y dashboard de Kick.
+10. Si aparecen nuevos módulos/repositorios, agregalos al documento de contexto central, con enlaces, alcance, estado y criterios de integración.
+
+ESTADO CONOCIDO AL 2026-11-23:
+- BetterKick: extensión principal existente en el repositorio indicado. No se ha integrado todavía LiveMarkers a su código publicado.
+- BetterKick LiveMarkers: beta independiente v0.1.10, probada con usuarios reales en Kick. Permite crear marcas manuales y por Alt+M, notas, puntos en la timeline del VOD y directo, marcas amarillas cuando el momento ya pasó, exportación/importación JSON/CSV, logs, panel privado desde el popup, detección de canales y dashboard de moderación, comandos !mark / !marker / !marcar / !marcador, cooldown global de 30 segundos por canal e identificación automática del VOD mediante tiempos UTC con respaldo UUIDv7. La sincronización automática entre equipos/moderadores NO está implementada; la importación/exportación JSON permite colaborar manualmente.
+- BetterKick Clip Manager y BetterKick Mod Assistant son conceptos por investigar, no se deben presentar como herramientas implementadas ni repositorios existentes.
+
+Recordatorio final: en toda conversación futura, comenzar por leer el documento central y los archivos reales del módulo activo. El objetivo no es fusionarlo todo ahora: es crear y validar cada pieza primero, y SOLO DESPUÉS preparar la gran actualización modular de BetterKick.
