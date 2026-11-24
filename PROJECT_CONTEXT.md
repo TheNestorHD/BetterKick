@@ -1,6 +1,6 @@
 # BetterKick — Contexto central del ecosistema
 
-> **Actualizado:** 2026-11-23  
+> **Actualizado:** 2026-11-24  
 > **Alcance:** Documento de coordinación para humanos e instancias de IA. No sustituye a `README.md` ni a `ROADMAP.md`.  
 > **Objetivo a largo plazo:** una gran actualización modular de **BetterKick** que integre funciones desarrolladas y validadas de forma independiente.
 
@@ -14,14 +14,15 @@ La integración no está autorizada implícitamente por el hecho de que exista u
 
 ## 2. Repositorios
 
-| Proyecto | Repositorio | Estado al 2026-11-23 | Función |
+| Proyecto | Repositorio | Estado al 2026-11-24 | Función |
 | --- | --- | --- | --- |
 | **BetterKick (principal)** | [TheNestorHD/BetterKick](https://github.com/TheNestorHD/BetterKick) | Extensión base existente | Integrará módulos estables en una actualización posterior |
 | **BetterKick LiveMarkers** | [TheNestorHD/BetterKick-livemarkers](https://github.com/TheNestorHD/BetterKick-livemarkers) | Beta independiente **0.1.10**, probada en Kick | Marcadores de momentos en directo y VOD, contribuciones de la comunidad |
 | **BetterKick ModAnalytics** | [TheNestorHD/BetterKick-modanalytics](https://github.com/TheNestorHD/BetterKick-modanalytics) | Desarrollo privado **0.1.0**, pruebas automatizadas y de navegador con fixtures | Métricas locales en el dashboard de moderación |
 | **BetterKick FollowGuard** | [TheNestorHD/BetterKick-followguard](https://github.com/TheNestorHD/BetterKick-followguard) | Desarrollo privado **0.1.0**, captura en directo pendiente de validar | Registro local de oleadas de seguidores y exportación CSV para revisión humana |
+| **BKBot — Powered by BetterKick** | [TheNestorHD/BetterKick-BKbot](https://github.com/TheNestorHD/BetterKick-BKbot) | Desarrollo privado **0.1.0**, OAuth y operaciones reales pendientes de validar | Comandos de chat, temporizadores, alertas de AutoMod y moderación supervisada de informes |
 
-BetterKick es el repositorio público del ecosistema. LiveMarkers, ModAnalytics y FollowGuard permanecen privados durante el desarrollo y se instalan por separado. Los dos nuevos módulos funcionan dentro del navegador, con historial por instalación, cero telemetría y consultas directas a Kick. Para evaluar su integración falta contrastar las métricas y la entrega de eventos con un dashboard autorizado durante un directo, además de probar la convivencia de los controles en distintas distribuciones.
+BetterKick es el repositorio público del ecosistema. Los módulos permanecen privados durante el desarrollo y se instalan por separado. ModAnalytics, FollowGuard y BKBot trabajan dentro del navegador, con historial por instalación, cero telemetría y conexiones directas a Kick. La integración de BKBot requiere validar el callback, un envío desde la cuenta dedicada y la moderación supervisada mediante la API oficial.
 
 **Ideas exploratorias, sin repositorios confirmados ni implementaciones:** *Clip Manager* (curaduría y preparación de clips) y *Mod Assistant* (ayuda a moderadores con detección y alertas, sin sanciones automáticas por defecto). Crear entradas solo cuando el proyecto exista.
 

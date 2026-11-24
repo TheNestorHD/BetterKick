@@ -20,11 +20,12 @@ Opera: Go to Releases and download the extension / Ve a "Releases" y descarga la
 
 ### Independent modules / Módulos independientes
 
-BetterKick is the public base extension. The following modules are private during development and install separately. Los tres módulos se desarrollan en repositorios privados y se instalan por separado.
+BetterKick is the public base extension. The following modules are private during development and install separately. Los módulos se desarrollan en repositorios privados y se instalan por separado.
 
 - [BetterKick LiveMarkers](https://github.com/TheNestorHD/BetterKick-livemarkers) — Live and VOD markers / Marcadores para directos y VOD.
 - [BetterKick ModAnalytics](https://github.com/TheNestorHD/BetterKick-modanalytics) — Local moderator dashboard metrics / Métricas locales para moderadores.
 - [BetterKick FollowGuard](https://github.com/TheNestorHD/BetterKick-followguard) — Follower incident history and CSV reports / Historial local de oleadas de seguidores e informes CSV.
+- [BKBot — Powered by BetterKick](https://github.com/TheNestorHD/BetterKick-BKbot) — Local chat automation and supervised moderation / Automatización local de chat y moderación supervisada.
 
 Development status and integration criteria / Estado de pruebas y criterios de integración: [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 
