@@ -1,5 +1,5 @@
 CONTEXTO UNIVERSAL — ECOSISTEMA BETTERKICK
-Actualizado: 2026-11-23
+Actualizado: 2026-11-24
 
 Estamos desarrollando varias herramientas independientes para mejorar la experiencia en Kick. Cada repositorio contiene una idea o módulo distinto, que se diseña, desarrolla y prueba por separado antes de plantear su integración en la extensión principal BetterKick.
 
@@ -11,6 +11,12 @@ https://github.com/TheNestorHD/BetterKick/blob/BetterKick/PROJECT_CONTEXT.md
 
 PRIMER MÓDULO INDEPENDIENTE — BETTERKICK LIVEMARKERS:
 https://github.com/TheNestorHD/BetterKick-livemarkers
+
+MÓDULOS DEL DASHBOARD DE MODERACIÓN:
+BetterKick ModAnalytics — https://github.com/TheNestorHD/BetterKick-modanalytics
+BetterKick FollowGuard — https://github.com/TheNestorHD/BetterKick-followguard
+BKBot — Powered by BetterKick — https://github.com/TheNestorHD/BetterKick-BKbot
+BetterKick es público. Los módulos permanecen privados durante el desarrollo. Cada uno se instala de forma independiente.
 
 INSTRUCCIONES PARA CUALQUIER INSTANCIA DE IA O COLABORADOR:
 1. Abrí y leé el documento de contexto central de BetterKick en el enlace anterior. Es la fuente principal sobre visión, repositorios, decisiones y plan de integración.
@@ -24,7 +30,11 @@ INSTRUCCIONES PARA CUALQUIER INSTANCIA DE IA O COLABORADOR:
 9. Evitá usar servicios o datos externos innecesarios. Prioridad: código abierto, procesamiento local, poca RAM/CPU, interfaz discreta e integración limpia con el reproductor y dashboard de Kick.
 10. Si aparecen nuevos módulos/repositorios, agregalos al documento de contexto central, con enlaces, alcance, estado y criterios de integración.
 
-ESTADO CONOCIDO AL 2026-11-23:
+ESTADO CONOCIDO AL 2026-11-24:
+- BKBot 0.1.0: motor de chat, temporizadores, alertas locales e importación de informes para moderación supervisada. Verificar OAuth, envío y moderación con una cuenta autorizada antes de integrar.
+- BetterKick ModAnalytics 0.1.0: panel de métricas y observaciones locales. Probado con fixtures en navegador. Falta contrastar espectadores y chat durante un directo autorizado.
+- BetterKick FollowGuard 0.1.0: incidentes por oleadas de follows, historial y CSV para revisión humana. Probado con fixtures en navegador. Falta confirmar la captura de un evento real recién recibido en el Activity Feed.
+- Ambos módulos guardan sus datos en el navegador y consultan directamente a Kick. Exigen cero telemetría. La integración futura requiere validación de campo, compatibilidad entre controles y una decisión expresa.
 - BetterKick: extensión principal existente en el repositorio indicado. No se ha integrado todavía LiveMarkers a su código publicado.
 - BetterKick LiveMarkers: beta independiente v0.1.10, probada con usuarios reales en Kick. Permite crear marcas manuales y por Alt+M, notas, puntos en la timeline del VOD y directo, marcas amarillas cuando el momento ya pasó, exportación/importación JSON/CSV, logs, panel privado desde el popup, detección de canales y dashboard de moderación, comandos !mark / !marker / !marcar / !marcador, cooldown global de 30 segundos por canal e identificación automática del VOD mediante tiempos UTC con respaldo UUIDv7. La sincronización automática entre equipos/moderadores NO está implementada; la importación/exportación JSON permite colaborar manualmente.
 - BetterKick Clip Manager y BetterKick Mod Assistant son conceptos por investigar, no se deben presentar como herramientas implementadas ni repositorios existentes.
